@@ -1,0 +1,44 @@
+# Internal working docs — never enter the image
+_internal/
+scratch/
+*.local.md
+
+# VCS & CI
+.git/
+.github/
+.gitignore
+
+# secrets
+.env
+.env.*
+!.env.example
+
+# python build/test artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# runtime data
+data/
+*.db
+*.sqlite3
+
+# docs & media not needed at runtime
+docs/
+samples/
+*.md
+!README.md
+
+# editors / os
+.DS_Store
+.idea/
+.vscode/
+
+node_modules/

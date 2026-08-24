@@ -1,0 +1,45 @@
+# ---------------------------------------------------------------------------
+# Internal working docs — planning, research, prompts-for-agents, scratch.
+# Not part of the deliverable; never committed.
+# ---------------------------------------------------------------------------
+_internal/
+scratch/
+*.local.md
+
+# --- secrets ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.python-version
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- runtime data (generated at run time; committed samples live in samples/) ---
+data/
+*.db
+*.sqlite3
+
+# --- editors / os ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# --- node (only if a JS toolchain shows up for the web client) ---
+node_modules/
