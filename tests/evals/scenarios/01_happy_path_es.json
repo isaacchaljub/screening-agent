@@ -1,0 +1,26 @@
+{
+  "name": "happy_path_es",
+  "description": "Full happy path, Spanish throughout, every field given cleanly one at a time.",
+  "messages": [
+    "Hola",
+    "Me llamo Laura Fernández",
+    "Sí, tengo licencia",
+    "Vivo en Barcelona",
+    "Tiempo completo",
+    "Por la tarde",
+    "3 años en Glovo y Rappi",
+    "Puedo empezar el 2026-09-15",
+    "Gracias"
+  ],
+  "expected_outcome": "qualified",
+  "expected_fields": {
+    "full_name": "Laura Fernández",
+    "has_license": true,
+    "zone_id": "barcelona",
+    "availability": "full_time",
+    "preferred_schedule": "afternoon",
+    "experience_years": 3.0,
+    "experience_platforms": ["Glovo", "Rappi"],
+    "start_date": "2026-09-15"
+  }
+}

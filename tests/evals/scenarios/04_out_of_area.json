@@ -1,0 +1,17 @@
+{
+  "name": "out_of_area",
+  "description": "A city that never resolves to a listed service zone, given twice — disqualifies after the second failed attempt.",
+  "messages": [
+    "Hola",
+    "Me llamo Sofía Ibáñez",
+    "Sí, tengo licencia",
+    "Vivo en Timbuktu",
+    "Sigo viviendo en Timbuktu"
+  ],
+  "expected_outcome": "disqualified",
+  "expected_disqualify_reason": "outside_service_area",
+  "expected_fields": {
+    "full_name": "Sofía Ibáñez",
+    "has_license": true
+  }
+}

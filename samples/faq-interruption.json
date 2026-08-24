@@ -1,0 +1,109 @@
+{
+  "conversation_id": "faq-interruption",
+  "stage": "wrap_up",
+  "outcome": "qualified",
+  "disqualify_reason": null,
+  "language": "es",
+  "profile": {
+    "full_name": "Carlos Pérez",
+    "has_license": true,
+    "city_raw": "Valencia",
+    "zone_id": "valencia",
+    "availability": "full_time",
+    "preferred_schedule": "afternoon",
+    "experience_years": 1.0,
+    "experience_platforms": [
+      "Glovo"
+    ],
+    "start_date": "2026-08-25",
+    "starts_immediately": false
+  },
+  "transcript": [
+    {
+      "role": "agent",
+      "content": "¡Hola! Soy de Grupo Sazón seleccionando repartidores. Tus respuestas quedan guardadas para esta solicitud. ¿Empezamos?"
+    },
+    {
+      "role": "candidate",
+      "content": "Hola"
+    },
+    {
+      "role": "agent",
+      "content": "¡Hola! Para avanzar, ¿me dices tu nombre completo, por favor?"
+    },
+    {
+      "role": "candidate",
+      "content": "Me llamo Carlos Pérez"
+    },
+    {
+      "role": "agent",
+      "content": "¡Mucho gusto, Carlos! ¿Tienes actualmente una licencia de conducir vigente?"
+    },
+    {
+      "role": "candidate",
+      "content": "Sí, tengo licencia"
+    },
+    {
+      "role": "agent",
+      "content": "¡Excelente! ¿En qué ciudad o zona te gustaría trabajar con nosotros?"
+    },
+    {
+      "role": "candidate",
+      "content": "¿Cuánto pagan por entrega?"
+    },
+    {
+      "role": "agent",
+      "content": "Una tarifa base por entrega más un extra por distancia en rutas largas. ¿En qué ciudad o zona trabajarías?"
+    },
+    {
+      "role": "candidate",
+      "content": "Vivo en Valencia"
+    },
+    {
+      "role": "agent",
+      "content": "¡Perfecto, Valencia! ¿Cuál es tu disponibilidad: tiempo completo, medio tiempo o fines de semana?"
+    },
+    {
+      "role": "candidate",
+      "content": "Tiempo completo"
+    },
+    {
+      "role": "agent",
+      "content": "¡Entendido! ¿Prefieres turno de mañana, tarde, noche o eres flexible?"
+    },
+    {
+      "role": "candidate",
+      "content": "Por la tarde"
+    },
+    {
+      "role": "agent",
+      "content": "¡Anotado! ¿Cuántos años de experiencia tienes repartiendo y en qué plataformas?"
+    },
+    {
+      "role": "candidate",
+      "content": "1 año en Glovo"
+    },
+    {
+      "role": "agent",
+      "content": "¡Excelente, con Glovo! ¿Cuál sería tu fecha de inicio?"
+    },
+    {
+      "role": "candidate",
+      "content": "Puedo empezar mañana"
+    },
+    {
+      "role": "agent",
+      "content": "¡Perfecto, mañana! Ya tengo toda tu información. Un reclutador se pondrá en contacto contigo muy pronto para los siguientes pasos."
+    },
+    {
+      "role": "candidate",
+      "content": "Gracias"
+    },
+    {
+      "role": "agent",
+      "content": "¡De nada, Carlos! Muchas gracias por tu tiempo, un reclutador se pondrá en contacto contigo muy pronto con los siguientes pasos."
+    }
+  ],
+  "summary": "Carlos Pérez — Valencia. Licence: yes. Availability: full_time, afternoon shift. Experience: 1.0 years (Glovo). Start: 2026-08-25.",
+  "exported_at": "2026-08-24T18:00:03.498201+00:00"
+}

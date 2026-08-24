@@ -1,0 +1,94 @@
+{
+  "conversation_id": "language-switch",
+  "stage": "wrap_up",
+  "outcome": "qualified",
+  "disqualify_reason": null,
+  "language": "en",
+  "profile": {
+    "full_name": "Ana García",
+    "has_license": true,
+    "city_raw": "Madrid",
+    "zone_id": "madrid",
+    "availability": "full_time",
+    "preferred_schedule": "morning",
+    "experience_years": 3.0,
+    "experience_platforms": [
+      "Uber Eats",
+      "Glovo"
+    ],
+    "start_date": "2026-08-31",
+    "starts_immediately": false
+  },
+  "transcript": [
+    {
+      "role": "agent",
+      "content": "¡Hola! Soy de Grupo Sazón seleccionando repartidores. Tus respuestas quedan guardadas para esta solicitud. ¿Empezamos?"
+    },
+    {
+      "role": "candidate",
+      "content": "Hola, buenas"
+    },
+    {
+      "role": "agent",
+      "content": "¡Hola! ¿Me podrías decir tu nombre completo, por favor?"
+    },
+    {
+      "role": "candidate",
+      "content": "Me llamo Ana García"
+    },
+    {
+      "role": "agent",
+      "content": "¡Perfecto, Ana! ¿Tienes actualmente una licencia de conducir válida?"
+    },
+    {
+      "role": "candidate",
+      "content": "Yes, I have a driver's license"
+    },
+    {
+      "role": "agent",
+      "content": "Got it! Which city or area would you like to work in?"
+    },
+    {
+      "role": "candidate",
+      "content": "I live in Madrid"
+    },
+    {
+      "role": "agent",
+      "content": "Great, Madrid! What is your availability: full-time, part-time, or weekends?"
+    },
+    {
+      "role": "candidate",
+      "content": "Full time trabajo, y prefiero las mornings"
+    },
+    {
+      "role": "agent",
+      "content": "¡Anotado! ¿Cuántos años de experiencia en reparto tienes y en qué plataformas trabajaste?"
+    },
+    {
+      "role": "candidate",
+      "content": "3 years, Uber Eats y Glovo"
+    },
+    {
+      "role": "agent",
+      "content": "¡Excelente! ¿Cuál es tu fecha de inicio disponible?"
+    },
+    {
+      "role": "candidate",
+      "content": "I can start next Monday"
+    },
+    {
+      "role": "agent",
+      "content": "Got it! I have everything needed now, and a recruiter will follow up with you soon."
+    },
+    {
+      "role": "candidate",
+      "content": "Thanks!"
+    },
+    {
+      "role": "agent",
+      "content": "Thanks! A recruiter will reach out soon with next steps."
+    }
+  ],
+  "summary": "Ana García — Madrid. Licence: yes. Availability: full_time, morning shift. Experience: 3.0 years (Uber Eats, Glovo). Start: 2026-08-31.",
+  "exported_at": "2026-08-24T17:51:00.660992+00:00"
+}

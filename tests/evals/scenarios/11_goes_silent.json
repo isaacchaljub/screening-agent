@@ -1,0 +1,12 @@
+{
+  "name": "goes_silent",
+  "description": "Two consecutive off-topic/non-answers to the same pending field — escalates to NEEDS_HUMAN instead of looping forever.",
+  "messages": [
+    "Hola",
+    "no entiendo la pregunta",
+    "sigo sin entender"
+  ],
+  "expected_outcome": "needs_human",
+  "expected_disqualify_reason": "full_name",
+  "expected_fields": {}
+}

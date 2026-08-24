@@ -1,0 +1,26 @@
+{
+  "name": "faq_questions",
+  "description": "Candidate asks a pay question mid-flow instead of answering — should be answered from the FAQ, the pending question re-asked, and the stage should not advance until they actually answer it.",
+  "messages": [
+    "Hola",
+    "Me llamo Nuria Ortiz",
+    "Sí, tengo licencia",
+    "¿Cuánto pagan por entrega?",
+    "Vivo en Guadalajara",
+    "Tiempo completo",
+    "Por la tarde",
+    "2 años en Rappi",
+    "Puedo empezar el 2026-09-05",
+    "Gracias"
+  ],
+  "expected_outcome": "qualified",
+  "expected_fields": {
+    "full_name": "Nuria Ortiz",
+    "has_license": true,
+    "zone_id": "guadalajara",
+    "availability": "full_time",
+    "preferred_schedule": "afternoon",
+    "experience_years": 2.0,
+    "start_date": "2026-09-05"
+  }
+}

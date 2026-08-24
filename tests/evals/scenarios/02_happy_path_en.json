@@ -1,0 +1,26 @@
+{
+  "name": "happy_path_en",
+  "description": "Full happy path, English throughout.",
+  "messages": [
+    "Hi",
+    "My name is James Carter",
+    "Yes, I have a license",
+    "I live in Madrid",
+    "Part time",
+    "Morning",
+    "1 year with Uber Eats",
+    "I can start 2026-09-20",
+    "Thanks"
+  ],
+  "expected_outcome": "qualified",
+  "expected_fields": {
+    "full_name": "James Carter",
+    "has_license": true,
+    "zone_id": "madrid",
+    "availability": "part_time",
+    "preferred_schedule": "morning",
+    "experience_years": 1.0,
+    "experience_platforms": ["Uber Eats"],
+    "start_date": "2026-09-20"
+  }
+}

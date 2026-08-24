@@ -1,0 +1,25 @@
+{
+  "name": "ambiguous_city",
+  "description": "A misspelled city close enough to trigger a nearest-zone suggestion, corrected on the next message; zero experience, which is valid and shouldn't disqualify.",
+  "messages": [
+    "Hola",
+    "Me llamo Marcos Díaz",
+    "Sí, tengo licencia",
+    "Vivo en Sevila",
+    "Perdón, Sevilla",
+    "Tiempo completo, por la mañana",
+    "No tengo experiencia",
+    "Puedo empezar el 2026-09-10",
+    "Gracias"
+  ],
+  "expected_outcome": "qualified",
+  "expected_fields": {
+    "full_name": "Marcos Díaz",
+    "has_license": true,
+    "zone_id": "sevilla",
+    "availability": "full_time",
+    "preferred_schedule": "morning",
+    "experience_years": 0.0,
+    "start_date": "2026-09-10"
+  }
+}

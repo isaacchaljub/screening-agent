@@ -13,9 +13,18 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from screening_agent.llm.base import Message
+from screening_agent.llm.base import Message, SchemaError
 from screening_agent.llm.client import LLMClient
 from screening_agent.models import Language
+
+# R5 / llm/retry.py's own docstring: a schema-validation failure retries the *same* model with
+# the parse error appended, never a vendor fallback — a different vendor won't fix a bad schema,
+# it'll just bill you. (Live-verified gap, M8: this was documented in retry.py's comments as
+# "llm/extract.py's job" but was never actually implemented anywhere — SchemaError just propagated
+# and crashed the turn. Never surfaced against Google's structured output, which is strict enough
+# not to trigger it; Groq's best-effort JSON mode is looser, e.g. returning `null` instead of `[]`
+# for `experience_platforms` — a real, if infrequent, case any vendor could hit.)
+MAX_SCHEMA_RETRIES = 2
 
 _SYSTEM_PROMPT = """\
 You extract structured facts from ONE candidate message in a delivery-driver screening chat.
@@ -33,6 +42,10 @@ Rules:
 - A candidate message can answer several fields at once — extract all of them.
 - Detect the language of the candidate's latest message: "es" or "en". If genuinely mixed, pick
   whichever dominates.
+- If the candidate asked a question instead of (or alongside) answering — about pay, hours,
+  vehicle, documents, equipment, insurance, anything about the job — put that question, standalone
+  and in its own words if it relies on earlier context, in faq_question. Null if they asked
+  nothing.
 """
 
 
@@ -43,29 +56,58 @@ class ExtractedFields(BaseModel):
     city: str | None = None
     availability: str | None = Field(
         default=None,
-        description="Employment type only: full-time, part-time, or weekends. "
-        "Not a time of day — that's preferred_schedule.",
+        description="Employment type only: full-time/part-time/weekends, e.g. 'tiempo completo', "
+        "'medio tiempo', 'fines de semana'. Never put a time of day here (morning/afternoon/"
+        "evening/'por la mañana') — that's preferred_schedule, a separate field.",
     )
     preferred_schedule: str | None = Field(
         default=None,
-        description="Time of day only: morning, afternoon, evening, or flexible. "
-        "Not full-time/part-time/weekends — that's availability.",
+        description="Time of day only: morning/afternoon/evening/flexible, e.g. 'por la mañana', "
+        "'por la tarde'. Never put full-time/part-time/weekends here (e.g. 'tiempo completo') — "
+        "that's availability, a separate field.",
     )
-    experience_years: str | None = None
-    experience_platforms: list[str] = Field(default_factory=list)
+    experience_years: str | None = Field(
+        default=None,
+        description="The raw phrase, even if it's not a number — 'ninguna'/'no experience'/'none' "
+        "is a real, valid answer here, not a reason to leave this null.",
+    )
+    experience_platforms: list[str] = Field(
+        default_factory=list,
+        description="Always an array — use [] when none were mentioned, never null.",
+    )
     start_date: str | None = None
+    faq_question: str | None = Field(
+        default=None,
+        description="A question the candidate asked about the job (pay, hours, vehicle, "
+        "documents, equipment, insurance, etc.), standalone/self-contained. Null if none.",
+    )
 
 
 def extract(
     client: LLMClient, *, history: list[Message], candidate_message: str
 ) -> ExtractedFields:
     messages = [*history, Message(role="user", content=candidate_message)]
-    result = client.complete_structured(
-        "extract",
-        system=_SYSTEM_PROMPT,
-        messages=messages,
-        schema=ExtractedFields,
-        temperature=0.0,  # a factual extraction, not creative writing — same input, same output
-    )
-    assert isinstance(result.data, ExtractedFields)  # schema= guarantees this; narrows for mypy
-    return result.data
+    system = _SYSTEM_PROMPT
+    last_error: SchemaError | None = None
+
+    for _ in range(MAX_SCHEMA_RETRIES + 1):
+        try:
+            result = client.complete_structured(
+                "extract",
+                system=system,
+                messages=messages,
+                schema=ExtractedFields,
+                temperature=0.0,  # factual extraction, not creative writing — same in, same out
+            )
+        except SchemaError as exc:
+            last_error = exc
+            system = (
+                f"{_SYSTEM_PROMPT}\n\nYour previous response did not validate against the "
+                f"schema: {exc}. Return valid JSON that matches the schema exactly this time."
+            )
+            continue
+        assert isinstance(result.data, ExtractedFields)  # schema= guarantees this; narrows mypy
+        return result.data
+
+    assert last_error is not None  # loop always sets this before falling through
+    raise last_error

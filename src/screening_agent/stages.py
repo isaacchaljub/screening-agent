@@ -55,7 +55,16 @@ class Confirm:
     field: str
 
 
-Step = AskStage | Terminate | Confirm
+@dataclass(frozen=True, slots=True)
+class Redirect:
+    """One neutral redirect after off-script/inappropriate input (guardrails.py, M5). Carries the
+    stage whose question is still outstanding, so compose.py can re-ask it naturally instead of
+    just scolding the candidate."""
+
+    stage: Stage
+
+
+Step = AskStage | Terminate | Confirm | Redirect
 
 
 FIELD_FOR_STAGE: dict[Stage, str] = {stage: field for field, stage in FIELD_ORDER}
@@ -100,3 +109,15 @@ def next_step(profile: CandidateProfile, attempts: dict[str, int]) -> Step:
     if not attempts.get("wrap_up:shown", 0):
         return AskStage(Stage.WRAP_UP)
     return Terminate(Terminal.QUALIFIED)
+
+
+def guardrail_step(prior_off_script_count: int, pending_stage: Stage) -> Redirect | Terminate:
+    """Called instead of `next_step()` on a turn `guardrails.classify()` flagged — never folded
+    into `next_step()` itself, because "off-script" is a property of *this turn's* message, not
+    of profile/attempt state, and `next_step()` is re-evaluated on every later turn too (folding
+    it in would re-trigger the redirect forever instead of only once). §3 process-design: one
+    neutral redirect, then the conversation closes.
+    """
+    if prior_off_script_count >= 1:
+        return Terminate(Terminal.ABANDONED, "off_script")
+    return Redirect(pending_stage)

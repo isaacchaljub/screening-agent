@@ -1,0 +1,107 @@
+"""Chunk → embed → persist to Chroma (M6).
+
+    python -m screening_agent.rag.index --rebuild
+
+Each `## Question` block in `faq.es.md` / `faq.en.md` is one chunk — short enough on its own that
+no further splitting is useful. Embeddings go through the provider layer (`LLMClient.embed`), which
+in dev resolves to Google's `gemini-embedding-001` (§5) — this deliberately never requires an
+OpenAI key.
+"""
+
+from __future__ import annotations
+
+import argparse
+import re
+from dataclasses import dataclass
+from pathlib import Path
+
+import chromadb
+
+from screening_agent.llm.client import LLMClient
+from screening_agent.models import Language
+
+FAQ_DIR = Path(__file__).parent
+CHROMA_DIR = Path("data") / "chroma"
+COLLECTION_NAME = "faq"
+
+_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
+
+
+@dataclass(frozen=True, slots=True)
+class FaqEntry:
+    id: str
+    language: Language
+    question: str
+    answer: str
+
+    @property
+    def text(self) -> str:
+        """What gets embedded — question and answer together, so a query phrased like either
+        the question or a fact from the answer can still match."""
+        return f"{self.question}\n{self.answer}"
+
+
+def _parse_faq(path: Path, language: Language) -> list[FaqEntry]:
+    text = path.read_text(encoding="utf-8")
+    headings = list(_HEADING_RE.finditer(text))
+    entries = []
+    for i, heading in enumerate(headings):
+        question = heading.group(1).strip()
+        start = heading.end()
+        end = headings[i + 1].start() if i + 1 < len(headings) else len(text)
+        answer = " ".join(text[start:end].strip().split())
+        entries.append(
+            FaqEntry(
+                id=f"{language.value}-{i:02d}", language=language, question=question, answer=answer
+            )
+        )
+    return entries
+
+
+def load_entries() -> list[FaqEntry]:
+    return [
+        *_parse_faq(FAQ_DIR / "faq.es.md", Language.ES),
+        *_parse_faq(FAQ_DIR / "faq.en.md", Language.EN),
+    ]
+
+
+def rebuild(*, client: LLMClient | None = None, persist_dir: Path = CHROMA_DIR) -> int:
+    """Re-embeds every FAQ entry and replaces the persisted collection wholesale — simpler and
+    safer than diffing for a knowledge base this small (~40 chunks)."""
+    client = client or LLMClient()
+    entries = load_entries()
+
+    texts = [entry.text for entry in entries]
+    embeddings = client.embed(texts, task_type="RETRIEVAL_DOCUMENT").vectors
+
+    chroma_client = chromadb.PersistentClient(path=str(persist_dir))
+    try:
+        chroma_client.delete_collection(COLLECTION_NAME)
+    except Exception:  # noqa: BLE001 — chromadb's "no such collection" error isn't public API
+        pass
+    collection = chroma_client.create_collection(COLLECTION_NAME, metadata={"hnsw:space": "cosine"})
+    collection.add(
+        ids=[entry.id for entry in entries],
+        embeddings=embeddings,
+        documents=texts,
+        metadatas=[
+            {"language": entry.language.value, "question": entry.question, "answer": entry.answer}
+            for entry in entries
+        ],
+    )
+    return len(entries)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(prog="screening_agent.rag.index")
+    parser.add_argument("--rebuild", action="store_true")
+    args = parser.parse_args()
+    if not args.rebuild:
+        parser.error("only --rebuild is supported right now")
+
+    count = rebuild()
+    print(f"indexed {count} FAQ entries into {CHROMA_DIR}/")
+
+
+if __name__ == "__main__":
+    main()

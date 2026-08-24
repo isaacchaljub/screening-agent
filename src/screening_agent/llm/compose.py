@@ -7,11 +7,26 @@ just has to realize it in the candidate's language, inside `config.TONE`'s const
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from screening_agent import config
 from screening_agent.llm.base import Message
 from screening_agent.llm.client import LLMClient
 from screening_agent.models import Language, Stage, Terminal
-from screening_agent.stages import AskStage, Confirm, Step, Terminate
+from screening_agent.stages import AskStage, Confirm, Redirect, Step, Terminate
+
+
+@dataclass(frozen=True, slots=True)
+class FaqContext:
+    """One retrieved FAQ hit to weave into the reply (M6) — process-design.md §3: "the question
+    is answered from the FAQ in one sentence, then the outstanding stage question is re-asked in
+    the same message. The stage does not advance." The re-ask half of that is free: `agent_step`
+    is still whatever `next_step()`/the pending stage already was, since a question-only turn
+    extracts no field and so doesn't advance it."""
+
+    question: str
+    answer: str
+
 
 _STAGE_INSTRUCTIONS: dict[Stage, str] = {
     Stage.GREETING: (
@@ -65,7 +80,10 @@ _OUTCOME_INSTRUCTIONS: dict[Terminal, str] = {
         "Warm and brief — not apologetic, this is a normal handoff, not an error."
     ),
     Terminal.ABANDONED: (
-        "This outcome is set by the re-engagement scheduler after silence, not composed live."
+        "Close the conversation politely and briefly — one or two sentences, neutral, not "
+        "scolding. Don't re-ask anything and don't explain why you're ending it. (This same "
+        "outcome is also reached silently by the re-engagement scheduler after a candidate goes "
+        "quiet — its own nudge messages are composed separately, in reengage/compose_nudge.)"
     ),
 }
 
@@ -77,6 +95,7 @@ def _build_system_prompt(
     validation_reason: str | None,
     just_captured: list[str],
     is_first_message: bool,
+    faq: FaqContext | None = None,
 ) -> str:
     tone = config.TONE
     lines = [
@@ -116,6 +135,12 @@ def _build_system_prompt(
         )
     if just_captured:
         lines.append(f"You just captured: {', '.join(just_captured)}. Don't ask about these again.")
+    if faq is not None:
+        lines.append(
+            f'They also asked: "{faq.question}". Answer that in one sentence, using ONLY this '
+            f'fact — never add or guess beyond it: "{faq.answer}". Then, in the same message, '
+            "continue with the instruction below."
+        )
 
     if isinstance(step, AskStage):
         lines.append(_STAGE_INSTRUCTIONS[step.stage])
@@ -127,6 +152,12 @@ def _build_system_prompt(
         )
     elif isinstance(step, Terminate):
         lines.append(_OUTCOME_INSTRUCTIONS[step.outcome])
+    elif isinstance(step, Redirect):
+        lines.append(
+            "Their last message wasn't a usable answer — off-topic, nonsensical, or "
+            "inappropriate. Don't call that out or lecture them. Acknowledge briefly and "
+            "neutrally, then naturally re-ask this: " + _STAGE_INSTRUCTIONS[step.stage]
+        )
 
     return "\n".join(lines)
 
@@ -140,6 +171,7 @@ def compose(
     validation_reason: str | None = None,
     just_captured: list[str] | None = None,
     is_first_message: bool = False,
+    faq: FaqContext | None = None,
 ) -> str:
     system = _build_system_prompt(
         step=step,
@@ -147,7 +179,59 @@ def compose(
         validation_reason=validation_reason,
         just_captured=just_captured or [],
         is_first_message=is_first_message,
+        faq=faq,
     )
     seed = history or [Message(role="user", content="(the candidate has not written anything yet)")]
+    result = client.complete_text("compose", system=system, messages=seed)
+    return result.text.strip()
+
+
+# --- re-engagement nudges (M7) — a separate, smaller prompt: there's no `Step`, no validation
+# reason, no prior turn to acknowledge, since the candidate hasn't replied to anything yet. ------
+
+_NUDGE_INSTRUCTIONS: dict[int, str] = {
+    0: (
+        "It's been a while since they last replied mid-application. Check in warmly and "
+        "briefly — are they still there / interested in continuing? One short, low-pressure "
+        "question, nothing more."
+    ),
+    1: (
+        "They've gone quiet for about a day. Lead with something they'd actually want to "
+        "know — pay and shift length — using only the facts given below, then invite them "
+        "back to finish applying."
+    ),
+    2: (
+        "Final follow-up before the application closes. Kindly let them know that if you "
+        "don't hear back, you'll close this application — but they're welcome to start again "
+        "anytime. No guilt-tripping, no pressure."
+    ),
+}
+
+
+def compose_nudge(
+    client: LLMClient,
+    *,
+    nudge_index: int,
+    language: Language,
+    faq_facts: list[str] | None = None,
+) -> str:
+    tone = config.TONE
+    lines = [
+        "You are a recruiting assistant for Grupo Sazón. You're re-opening a delivery-driver "
+        "screening conversation that paused because the candidate stopped replying. Write ONE "
+        "short outbound message, nothing else — they have not replied to anything yet, so this "
+        "is not a reply, it's you reaching out again.",
+        f"Respond ENTIRELY in {'Spanish' if language == Language.ES else 'English'}.",
+        f"Under {tone.max_words} words.",
+        'No greeting like "hi again" and no sign-off.',
+        "Never invent pay or policy details beyond what's given below.",
+        _NUDGE_INSTRUCTIONS[nudge_index],
+    ]
+    if faq_facts:
+        lines.append(
+            "Facts you may draw on, verbatim — don't add to them: " + " | ".join(faq_facts)
+        )
+    system = "\n".join(lines)
+    seed = [Message(role="user", content="(the candidate has gone quiet)")]
     result = client.complete_text("compose", system=system, messages=seed)
     return result.text.strip()

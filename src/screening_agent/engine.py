@@ -3,14 +3,16 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
+from collections.abc import Callable
 from datetime import date
 
-from screening_agent import config
+from screening_agent import config, guardrails
 from screening_agent import validators as v
 from screening_agent.llm.base import Message
 from screening_agent.llm.client import LLMClient
-from screening_agent.llm.compose import compose
+from screening_agent.llm.compose import FaqContext, compose
 from screening_agent.llm.extract import ExtractedFields, extract
 from screening_agent.models import (
     Availability,
@@ -20,10 +22,22 @@ from screening_agent.models import (
     Stage,
     Terminal,
 )
-from screening_agent.stages import FIELD_FOR_STAGE, AskStage, Terminate, is_field_empty, next_step
+from screening_agent.rag.retrieve import FaqHit
+from screening_agent.rag.retrieve import retrieve as retrieve_faq
+from screening_agent.stages import (
+    FIELD_FOR_STAGE,
+    AskStage,
+    Step,
+    Terminate,
+    guardrail_step,
+    is_field_empty,
+    next_step,
+)
 from screening_agent.store import Store
 
 MAX_ATTEMPTS = 2
+
+logger = logging.getLogger(__name__)
 
 
 def generate_summary(profile: CandidateProfile) -> str:
@@ -58,6 +72,7 @@ class Conversation:
         client: LLMClient,
         conversation_id: str | None = None,
         today: date | None = None,
+        faq_retriever: Callable[[str], list[FaqHit]] | None = None,
     ) -> None:
         self.store = store
         self.client = client
@@ -72,6 +87,11 @@ class Conversation:
         self._stage = Stage.GREETING
         self._outcome: Terminal | None = None
         self._disqualify_reason: str | None = None
+        # Injectable (tests fake it out — no network/Chroma in the offline suite); defaults to
+        # the real FAQ retriever (M6) against this conversation's own client/model.
+        self._faq_retriever = faq_retriever or (
+            lambda query: retrieve_faq(query, client=self.client)
+        )
         store.create_conversation(self.id)
 
     @property
@@ -102,25 +122,61 @@ class Conversation:
         if self.finished:
             raise RuntimeError("conversation already reached a terminal outcome")
 
-        self.history.append(Message(role="user", content=candidate_message))
+        # Guardrails (M5) run before extraction and before the candidate's message joins
+        # `self.history` — no need to spend a model call pulling fields out of a keyboard mash
+        # or an insult, and it keeps the redirect-then-close ladder entirely independent of
+        # whatever field happens to be pending.
+        flag = guardrails.classify(candidate_message)
+        if flag is not None:
+            logger.info(
+                "guardrail triggered (%s) on conversation %s: %s",
+                flag,
+                self.id,
+                guardrails.redact_for_log(candidate_message),
+            )
+            self.history.append(Message(role="user", content=candidate_message))
+            prior_off_script = self.attempts.get("off_script", 0)
+            self.attempts["off_script"] = prior_off_script + 1
+            agent_step = guardrail_step(prior_off_script, self._stage)
+            text = compose(
+                self.client, step=agent_step, history=self.history, language=self.language
+            )
+            self._finalize(agent_step, text, candidate_message)
+            return text
 
         pending_field = FIELD_FOR_STAGE.get(self._stage)
         attempts_before = self.attempts.get(pending_field, 0) if pending_field else None
 
+        # `extract()` appends `candidate_message` to `history` itself (see llm/extract.py) — so
+        # `self.history` must NOT already contain it here, or the model sees the candidate's last
+        # message twice in a row. Append only after this call. (Regression: this bug pre-dates
+        # M5 and was live-verified to corrupt extraction, e.g. "Me llamo Ana García" sent twice
+        # extracted as full_name="Ana GarcíaMe llamo Ana García".)
         extracted = extract(self.client, history=self.history, candidate_message=candidate_message)
+        self.history.append(Message(role="user", content=candidate_message))
         if extracted.language is not None:
             self.language = extracted.language
 
         just_captured, validation_reason = self._apply_extraction(extracted)
 
+        # A candidate asking a side question (M6) is not a failed or silent reply — it's a
+        # different, legitimate kind of turn, and process-design.md §3 doesn't want it counted
+        # toward the 2-attempt cap ("the stage does not advance", not "the stage fails").
+        faq_context: FaqContext | None = None
+        if extracted.faq_question:
+            hits = self._faq_retriever(extracted.faq_question)
+            if hits:
+                faq_context = FaqContext(question=extracted.faq_question, answer=hits[0].answer)
+
         # A silent/off-topic reply extracts nothing for the pending field — no capture, no
         # rejection — so `attempts` never moves and rule 3's NEEDS_HUMAN cap never fires. Count
-        # it as a failed attempt too.
+        # it as a failed attempt too — unless it was an FAQ question, see above.
         if (
             pending_field is not None
             and attempts_before is not None
             and is_field_empty(self.profile, pending_field)
             and self.attempts.get(pending_field, 0) == attempts_before
+            and extracted.faq_question is None
         ):
             self.attempts[pending_field] = attempts_before + 1
             validation_reason = validation_reason or "didn't get an answer to that"
@@ -134,7 +190,12 @@ class Conversation:
             language=self.language,
             validation_reason=validation_reason,
             just_captured=just_captured,
+            faq=faq_context,
         )
+        self._finalize(agent_step, text, candidate_message)
+        return text
+
+    def _finalize(self, agent_step: Step, text: str, candidate_message: str) -> None:
         self.history.append(Message(role="assistant", content=text))
 
         if isinstance(agent_step, AskStage):
@@ -152,8 +213,6 @@ class Conversation:
         if self.finished:
             summary = generate_summary(self.profile)
             self.store.export_json(self.id, summary=summary)
-
-        return text
 
     def _record(self, *, candidate_message: str | None, agent_message: str) -> None:
         self.store.record_turn(

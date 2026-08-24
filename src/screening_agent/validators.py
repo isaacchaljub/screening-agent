@@ -254,7 +254,19 @@ def validate_preferred_schedule(raw: str) -> FieldResult:
 
 # --- experience_years / experience_platforms ---------------------------------------------------
 
-_NONE_EXPERIENCE_WORDS = ("none", "no experience", "sin experiencia", "ninguna", "ninguno")
+# "no tengo experiencia" ("I don't have experience") is arguably the *most* natural way to say
+# this in Spanish — live-verified missing here (M8 eval sweep): extraction correctly captured the
+# phrase, but this list didn't recognize it, so it fell through to "couldn't find a number of
+# years" and eventually NEEDS_HUMAN, on a candidate who should have qualified with 0 years.
+_NONE_EXPERIENCE_WORDS = (
+    "none",
+    "no experience",
+    "sin experiencia",
+    "no tengo experiencia",
+    "no experiencia",
+    "ninguna",
+    "ninguno",
+)
 _NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?")
 _RANGE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(?:-|a|to|hasta)\s*(\d+(?:\.\d+)?)")
 _WORD_NUMBERS = {

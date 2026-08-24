@@ -1,0 +1,25 @@
+{
+  "name": "zero_experience",
+  "description": "Zero prior delivery experience is valid and must not disqualify.",
+  "messages": [
+    "Hola",
+    "Me llamo Isabel Moreno",
+    "Sí, tengo licencia",
+    "Vivo en Málaga",
+    "Medio tiempo",
+    "Flexible",
+    "Ninguna experiencia",
+    "Puedo empezar el 2026-09-08",
+    "Gracias"
+  ],
+  "expected_outcome": "qualified",
+  "expected_fields": {
+    "full_name": "Isabel Moreno",
+    "has_license": true,
+    "zone_id": "malaga",
+    "availability": "part_time",
+    "preferred_schedule": "flexible",
+    "experience_years": 0.0,
+    "start_date": "2026-09-08"
+  }
+}

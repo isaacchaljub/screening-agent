@@ -65,3 +65,27 @@ def test_honors_google_style_retry_delay_hint():
 
     assert len(waits) == 2  # slept before attempt 2 and 3, not after the final failure
     assert all(7 <= w <= 7.5 for w in waits)
+
+
+def test_honors_groq_style_retry_delay_hint():
+    # Regression (M8): Groq's 429 body reads "Please try again in 1.2075s." — a different
+    # phrasing from Google's "retryDelay"/"retry in N seconds", live-verified to fall back to
+    # blind exponential backoff (and exhaust all 3 attempts on an 8000 TPM budget) before this
+    # pattern was added.
+    waits = []
+
+    class FakeGroqError(Exception):
+        def __str__(self):
+            return (
+                "Error code: 429 - {'error': {'message': 'Rate limit reached ... "
+                "Please try again in 1.2075s.'}}"
+            )
+
+    def fn():
+        raise TransportError("rate limited", original=FakeGroqError())
+
+    with pytest.raises(TransportError):
+        call_with_retry(fn, sleep=lambda s: waits.append(s))
+
+    assert len(waits) == 2
+    assert all(1.2 <= w <= 1.8 for w in waits)

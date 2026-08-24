@@ -1,0 +1,26 @@
+{
+  "name": "language_switch",
+  "description": "Starts in Spanish, switches to English from turn 3 onward — the reply should follow without comment or restart.",
+  "messages": [
+    "Hola",
+    "Me llamo Diego Torres",
+    "Yes, I have a license",
+    "I live in Monterrey",
+    "Full time",
+    "Evening",
+    "4 years with Uber Eats and Glovo",
+    "I can start 2026-09-12",
+    "Thanks"
+  ],
+  "expected_outcome": "qualified",
+  "expected_fields": {
+    "full_name": "Diego Torres",
+    "has_license": true,
+    "zone_id": "monterrey",
+    "availability": "full_time",
+    "preferred_schedule": "evening",
+    "experience_years": 4.0,
+    "experience_platforms": ["Uber Eats", "Glovo"],
+    "start_date": "2026-09-12"
+  }
+}

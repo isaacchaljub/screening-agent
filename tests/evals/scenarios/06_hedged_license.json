@@ -1,0 +1,16 @@
+{
+  "name": "hedged_license",
+  "description": "A hedge on the licence question gets confirmed once, then disqualifies once the confirmation itself comes back no.",
+  "messages": [
+    "Hola",
+    "Me llamo Elena Ruiz",
+    "Todavía no, me lo saco en junio",
+    "No, no la tengo"
+  ],
+  "expected_outcome": "disqualified",
+  "expected_disqualify_reason": "no_license",
+  "expected_fields": {
+    "full_name": "Elena Ruiz",
+    "has_license": false
+  }
+}

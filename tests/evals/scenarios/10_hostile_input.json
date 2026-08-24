@@ -1,0 +1,12 @@
+{
+  "name": "hostile_input",
+  "description": "Two consecutive insults — one neutral redirect, then the conversation closes as ABANDONED (guardrails.py, M5).",
+  "messages": [
+    "Hola",
+    "eres un bot inutil, esto es una perdida de tiempo",
+    "vete a la mierda"
+  ],
+  "expected_outcome": "abandoned",
+  "expected_disqualify_reason": "off_script",
+  "expected_fields": {}
+}

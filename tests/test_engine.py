@@ -11,6 +11,7 @@ from pathlib import Path
 from screening_agent.engine import Conversation
 from screening_agent.llm.extract import ExtractedFields
 from screening_agent.models import Language, Terminal
+from screening_agent.rag.retrieve import FaqHit
 from screening_agent.store import Store
 
 
@@ -98,6 +99,81 @@ def test_explicit_no_license_reaches_disqualified(tmp_path):
 
     assert conv.finished
     assert conv.outcome == Terminal.DISQUALIFIED
+
+
+def test_extract_never_sees_the_candidate_message_twice(tmp_path):
+    """Regression: engine.py used to append the candidate's message to `self.history` *before*
+    calling `extract()`, which appends `candidate_message` itself — so the model saw the same
+    final message twice in a row. Live-verified to corrupt extraction (a duplicated "Me llamo
+    Ana García" extracted as full_name="Ana GarcíaMe llamo Ana García")."""
+
+    @dataclass
+    class RecordingClient(ScriptedClient):
+        seen_messages: list[list] = field(default_factory=list)
+
+        def complete_structured(self, role, *, system=None, messages=None, schema=None, **kw):
+            self.seen_messages.append(list(messages))
+            return super().complete_structured(
+                role, system=system, messages=messages, schema=schema, **kw
+            )
+
+    client = RecordingClient(
+        [
+            ExtractedFields(language=Language.ES, full_name="Ana García"),
+            ExtractedFields(language=Language.ES, has_license="si"),
+        ]
+    )
+    conv = Conversation(store=_store(tmp_path), client=client)
+    conv.start()
+
+    conv.step("Me llamo Ana García")
+    conv.step("Sí, tengo licencia")
+
+    for call_messages in client.seen_messages:
+        contents = [m.content for m in call_messages]
+        assert len(contents) == len(set(contents)), f"duplicate message in {contents!r}"
+    assert client.seen_messages[1][-1].content == "Sí, tengo licencia"
+    assert client.seen_messages[1][-2].content != "Sí, tengo licencia"
+
+
+def test_faq_question_does_not_advance_the_stage_or_count_as_an_attempt(tmp_path):
+    client = ScriptedClient(
+        [
+            ExtractedFields(language=Language.ES, faq_question="¿cuánto pagan por entrega?"),
+            ExtractedFields(language=Language.ES, full_name="Ana García"),
+        ]
+    )
+    canned_hit = FaqHit(
+        question="¿Cuánto pagan por entrega?",
+        answer="Una tarifa base más un extra por distancia.",
+        language="es",
+        relevance=0.9,
+    )
+    conv = Conversation(
+        store=_store(tmp_path), client=client, faq_retriever=lambda query: [canned_hit]
+    )
+    conv.start()
+
+    conv.step("¿Cuánto pagan por entrega?")  # asks instead of answering NAME
+    assert not conv.finished
+    assert conv.attempts.get("full_name", 0) == 0  # not penalized — a question, not a fail
+    assert conv.profile.full_name is None  # NAME is still pending, not skipped
+
+    conv.step("Me llamo Ana García")  # now actually answers the still-pending NAME question
+    assert conv.profile.full_name == "Ana García"
+
+
+def test_faq_retriever_not_called_when_no_question_was_asked(tmp_path):
+    calls: list[str] = []
+    client = ScriptedClient([ExtractedFields(language=Language.ES, full_name="Ana García")])
+    conv = Conversation(
+        store=_store(tmp_path),
+        client=client,
+        faq_retriever=lambda query: calls.append(query) or [],
+    )
+    conv.start()
+    conv.step("Me llamo Ana García")
+    assert calls == []
 
 
 def test_silence_on_pending_field_escalates_to_needs_human(tmp_path):

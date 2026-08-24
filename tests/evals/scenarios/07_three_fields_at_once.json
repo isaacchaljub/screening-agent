@@ -1,0 +1,23 @@
+{
+  "name": "three_fields_at_once",
+  "description": "Name, licence, and city all volunteered in one message — should fill all three and jump straight to availability.",
+  "messages": [
+    "Hola, soy Carlos Vega, tengo licencia y vivo en Puebla",
+    "Tiempo completo",
+    "Por la noche",
+    "5 años en Didi Food",
+    "Ya mismo",
+    "Gracias"
+  ],
+  "expected_outcome": "qualified",
+  "expected_fields": {
+    "full_name": "Carlos Vega",
+    "has_license": true,
+    "zone_id": "puebla",
+    "availability": "full_time",
+    "preferred_schedule": "evening",
+    "experience_years": 5.0,
+    "experience_platforms": ["DiDi Food"],
+    "starts_immediately": true
+  }
+}

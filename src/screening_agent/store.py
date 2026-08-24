@@ -34,6 +34,11 @@ class ConversationRow(Base):
     outcome: Mapped[str | None]
     disqualify_reason: Mapped[str | None]
     language: Mapped[str | None]
+    # Re-engagement (M7). Deliberately separate from `updated_at`, which also moves on a nudge
+    # send — the ladder needs to measure time since the *candidate* last did something, not since
+    # the conversation was last touched at all (a nudge touches it too, but doesn't cancel itself).
+    last_candidate_activity: Mapped[datetime | None]
+    nudge_count: Mapped[int] = mapped_column(default=0)
 
     turns: Mapped[list[TurnRow]] = relationship(
         back_populates="conversation", cascade="all, delete-orphan", order_by="TurnRow.turn_index"
@@ -104,6 +109,17 @@ def _profile_to_dict(row: ProfileRow) -> dict[str, Any]:
     }
 
 
+def _as_utc(value: datetime | None) -> datetime | None:
+    """SQLite has no native datetime type — SQLAlchemy round-trips a value written as UTC-aware
+    back as *naive* (confirmed against the installed SQLAlchemy/SQLite combination). Every
+    datetime this module writes is `datetime.now(UTC)`, so re-attaching UTC on read is correct by
+    convention, not a guess — without it, `reengage/policy.py`'s `now - last_candidate_activity`
+    raises (can't subtract offset-naive and offset-aware datetimes)."""
+    if value is not None and value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class ConversationRecord:
     id: str
@@ -113,6 +129,16 @@ class ConversationRecord:
     language: str | None
     profile: dict[str, Any]
     transcript: list[dict[str, str]]
+
+
+@dataclass(frozen=True, slots=True)
+class ActiveConversation:
+    id: str
+    stage: str
+    language: str | None
+    zone_id: str | None
+    last_candidate_activity: datetime | None
+    nudge_count: int
 
 
 class Store:
@@ -136,6 +162,8 @@ class Store:
                     outcome=None,
                     disqualify_reason=None,
                     language=None,
+                    last_candidate_activity=None,
+                    nudge_count=0,
                 )
             )
             session.add(ProfileRow(conversation_id=conversation_id, experience_platforms=[]))
@@ -152,8 +180,12 @@ class Store:
         outcome: Terminal | None,
         disqualify_reason: str | None,
         language: Language | None,
+        now: datetime | None = None,
     ) -> None:
-        now = datetime.now(UTC)
+        # Injectable for the same reason `reengage/scheduler.run_once`'s `now` is: the fast-clock
+        # demo (reengage/demo.py) needs `last_candidate_activity` set to a specific instant, not
+        # whichever wall-clock moment happens to be current when the demo script runs.
+        now = now or datetime.now(UTC)
         with Session(self.engine) as session:
             conv = session.get(ConversationRow, conversation_id)
             if conv is None:
@@ -172,6 +204,10 @@ class Store:
                     )
                 )
                 next_index += 1
+                # Any reply cancels the nudge ladder (process-design.md §3) — reset both the
+                # clock the ladder measures from and the count of rungs already sent.
+                conv.last_candidate_activity = now
+                conv.nudge_count = 0
             session.add(
                 TurnRow(
                     conversation_id=conversation_id,
@@ -193,6 +229,55 @@ class Store:
                 conv.language = language.value
             conv.updated_at = now
             session.commit()
+
+    def record_nudge(
+        self,
+        conversation_id: str,
+        *,
+        message: str,
+        nudge_index: int,
+        outcome: Terminal | None = None,
+    ) -> None:
+        """A re-engagement nudge (M7) — an agent-only turn. Does *not* touch
+        `last_candidate_activity`; a nudge is the opposite of candidate activity, and if it did
+        reset that clock the ladder would push itself back every time it fired."""
+        now = datetime.now(UTC)
+        with Session(self.engine) as session:
+            conv = session.get(ConversationRow, conversation_id)
+            if conv is None:
+                raise KeyError(
+                    f"no conversation {conversation_id!r} — call create_conversation first"
+                )
+            session.add(
+                TurnRow(
+                    conversation_id=conversation_id,
+                    turn_index=len(conv.turns),
+                    role="agent",
+                    content=message,
+                    created_at=now,
+                )
+            )
+            conv.nudge_count = nudge_index + 1
+            if outcome is not None:
+                conv.outcome = outcome.value
+            conv.updated_at = now
+            session.commit()
+
+    def list_active(self) -> list[ActiveConversation]:
+        """Non-terminal conversations, for the re-engagement scheduler (M7) to scan."""
+        with Session(self.engine) as session:
+            rows = session.query(ConversationRow).filter(ConversationRow.outcome.is_(None)).all()
+            return [
+                ActiveConversation(
+                    id=row.id,
+                    stage=row.stage,
+                    language=row.language,
+                    zone_id=row.profile.zone_id if row.profile else None,
+                    last_candidate_activity=_as_utc(row.last_candidate_activity),
+                    nudge_count=row.nudge_count,
+                )
+                for row in rows
+            ]
 
     def get(self, conversation_id: str) -> ConversationRecord:
         with Session(self.engine) as session:

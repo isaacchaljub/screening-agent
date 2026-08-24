@@ -1,0 +1,15 @@
+{
+  "name": "no_license",
+  "description": "Explicit, unhedged 'no' on the licence question — disqualifies immediately, no confirmation step.",
+  "messages": [
+    "Hola",
+    "Me llamo Pedro Gómez",
+    "No, no tengo licencia"
+  ],
+  "expected_outcome": "disqualified",
+  "expected_disqualify_reason": "no_license",
+  "expected_fields": {
+    "full_name": "Pedro Gómez",
+    "has_license": false
+  }
+}
