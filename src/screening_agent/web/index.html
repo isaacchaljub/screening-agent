@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grupo Sazón — Driver Screening</title>
+<link rel="stylesheet" href="/chat.css">
+</head>
+<body>
+<div class="app">
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark">GS</span>
+      <div>
+        <div class="brand-name">Grupo Sazón</div>
+        <div class="brand-sub">Driver applications</div>
+      </div>
+    </div>
+    <span id="status-pill" class="status-pill">connecting…</span>
+  </header>
+
+  <main id="thread" class="thread" aria-live="polite"></main>
+
+  <div id="typing" class="typing hidden">
+    <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+  </div>
+
+  <form id="composer" class="composer">
+    <input
+      id="input"
+      type="text"
+      autocomplete="off"
+      placeholder="Escribe tu respuesta…"
+      disabled
+    >
+    <button id="send" type="submit" disabled>Send</button>
+  </form>
+</div>
+<script src="/chat.js"></script>
+</body>
+</html>
