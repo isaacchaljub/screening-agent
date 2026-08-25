@@ -1,7 +1,7 @@
 # Grupo Sazón — candidate screening agent
 
 A conversational agent that screens delivery-driver applicants over messaging: it collects and
-validates seven fields, disqualifies ineligible candidates within four messages instead of twelve,
+validates seven fields, disqualifies ineligible candidates in three messages instead of eight,
 and hands qualified ones to a recruiter as structured data with a generated summary.
 
 Built for the Orbio FDE technical assignment. The client is fictional: a restaurant chain with 45
@@ -14,8 +14,9 @@ who were never eligible.
 - **Deployment & scaling:** [`docs/deployment.md`](docs/deployment.md)
 - **ATS integration spec:** [`docs/ats-integration.md`](docs/ats-integration.md)
 - **Sample conversations:** [`samples/`](samples/)
+- **Demo video (5–10 min):** <!-- TODO: paste the link here before submitting -->
 - **Running it / demo runbook:** [`docs/serve.md`](docs/serve.md)
-- **Study guide (design decisions, in depth):** [`docs/study-guide.md`](docs/study-guide.md)
+- **Study guide (the FAQ tie-break, in depth):** [`docs/study-guide.md`](docs/study-guide.md)
 
 ---
 
@@ -112,7 +113,8 @@ src/screening_agent/
 ├── guardrails.py     off-script classification + PII-safe log redaction       ← pure, no I/O
 ├── engine.py         the turn loop: extract → validate/advance → compose
 ├── store.py          SQLAlchemy persistence + per-conversation JSON export
-├── api.py            FastAPI: POST /api/chat[/voice], GET /api/conversations/{id}, static mount
+├── api.py            FastAPI: POST /api/chat[/voice], GET /api/conversations/{id},
+│                     GET /api/health, static mount
 ├── cli.py            terminal client
 ├── config.py         env, service zones, tone constants, free-tier guard
 ├── llm/              the provider layer — the only place an LLM vendor name appears
@@ -157,7 +159,7 @@ machine never reads free text. The worst case is a wasted turn, indistinguishabl
 off-topic message. That is a structural guarantee rather than a prompt-engineering hope, and it is
 the reason the security story here is short.
 
-It also makes the system testable. 168 tests run offline with no network and no mocked model,
+It also makes the system testable. 235 tests run offline with no network and no mocked model,
 because the parts that make decisions are pure functions. And it is why the decision-making layer
 will never be the scaling bottleneck — see `docs/deployment.md`.
 
@@ -186,7 +188,8 @@ Sonnet-on-both-jobs, at 58% of the cost** ($0.0258 vs $0.0448 per conversation) 
 extraction half never needed the stronger model. See the bake-off below.
 
 **`OPENAI_API_KEY` is present and deliberately unused.** `providers/openai.py` implements the
-Responses API (GPT-5.6 `luna`/`terra`) but it stays out at this stage.
+Responses API — a materially different calling convention from Chat Completions, which is why it's
+a separate provider module — but it stays out at this stage.
 
 **Why Anthropic as the primary at all:** it was the vendor whose current API surface could be
 verified end to end against real responses within the time available, and the Haiku/Sonnet pair
@@ -244,11 +247,10 @@ models like `all-MiniLM-L6-v2` were never candidates: this FAQ is deliberately b
 2. **A narrower relevance margin.** The floor had to be recalibrated from scratch (0.72 → 0.84);
    a threshold is not transferable between embedding models. E5 compresses similarity into a high,
    tight band, so the gap between on-topic and off-topic is ~0.02 here versus ~0.06 before. The
-   *ordering* is usually reliable; the absolute cut is the fragile part — but not always: measured
-   in production, "cuánto pagan" (how much do you pay) ranked "¿Cuándo me pagan?" (when do you get
-   paid) first, 0.880 vs 0.875. Same topic, one differing letter, and the tight band in this exact
-   model means a ~0.005 gap decides it. `rag/retrieve.py`'s `_interrogative_category()` tie-break
-   (below) exists because of this specific, measured miss, not a hypothetical one.
+   *ordering* is usually reliable; the absolute cut is the fragile part — and in this band a
+   ~0.005 gap can decide a ranking. `rag/retrieve.py`'s `_interrogative_category()` tie-break exists
+   because of one specific, measured miss of exactly that size, not a hypothetical one; the case is
+   in "What I'd do differently" below.
 3. **Cross-lingual retrieval no longer clears that floor.** Spanish-query→English-chunk pairs score
    ~0.82–0.85, overlapping the off-topic band, so no absolute threshold admits all of them while
    rejecting junk. In production this costs nothing — both language files cover the same 20 topics,
@@ -295,6 +297,14 @@ candidate PII is not eligible for that. It's enforced in code, and tested, becau
 convention eventually gets violated by a hurried rollback. Fallback honours it too — a backup that
 wouldn't be allowed to run isn't eligible to rescue a failed call.
 
+### 8. Candidate answers go to the database, never to the logs
+
+The greeting tells the candidate their answers are stored for this application. That sentence is
+the commitment the rest of the system is held to, and (7) is only half of it — the other half is
+that a logged message is reduced to a length and a short hash by `guardrails.redact_for_log()`,
+never written verbatim. Logs are longer-lived, more widely read, and more often shipped to third
+parties than the database the candidate was actually told about, so the two get different rules.
+
 ---
 
 ## Bonus features
@@ -316,11 +326,13 @@ special-casing anywhere downstream, including the two-attempt cap and mid-conver
 switching). Speech synthesis (a spoken agent reply) is **not** built: every voice_id tried against
 ElevenLabs' text-to-speech API — including its own standard premade voices — returns
 `402 payment_required`, "Free users cannot use library voices via the API." That's a plan
-restriction on the account behind the supplied key, not a shape or effort problem. Not built at
-all, still: sentiment analysis, an analytics dashboard. See `_internal/STUDY_GUIDE.md` for why
-those two, plus the
-original case for treating voice as the lowest-value "Great" tier before a key made half of it
-free to verify.
+restriction on the account behind the supplied key, not a shape or effort problem.
+
+Not built at all, still: sentiment analysis and an analytics dashboard. Both were judged lower
+value than what's here — sentiment overlaps what `guardrails.classify()` already catches at the
+only point it would change behaviour, and a dashboard renders numbers the eval report already
+produces. Voice was itself ranked the lowest-value "Great" tier for the same reason, until a live
+key made half of it free to verify.
 
 ---
 
@@ -432,11 +444,18 @@ like a good recruiter is checked only by word count. Judging tone needs an LLM-a
 which is the next thing I'd build — it's the metric that would catch a regression a human would
 notice and the current suite wouldn't.
 
+**Voice input is the one exception to decision (7), and it isn't gated.** `assert_model_allowed()`
+refuses free-tier vendors for candidate data outside `dev`, but it only knows about the LLM roles in
+`registry.ROLES` — voice arrived after that policy and sends the recording straight to ElevenLabs on
+whatever plan the supplied key happens to be on. Before voice takes real candidate traffic this
+needs the same treatment the LLM roles already got: confirm the plan doesn't reserve training rights
+over submitted audio, or gate it the way free-tier LLM vendors are gated.
+
 **Single-channel.** The browser UI is the demo surface, but a candidate who ignores a phone call
 answers WhatsApp. `api.py` is already the right seam for a channel adapter.
 
-**LLM tracing** Enabling Langsmith for the app, to be able to follow the agent's parameters, input,
-thinking, and output at every turn and call. This would make debugging a simple walkthrough over the
+**No LLM tracing.** Enabling LangSmith would make the agent's parameters, input, reasoning and
+output visible at every turn and call. This would make debugging a simple walkthrough over the
 trace and enable concurrent work on the code.
 
 **Logging is unstructured.** A dozen call sites use plain `logging.getLogger` and `%s`-style
@@ -448,9 +467,10 @@ with no parameter threading and no change to what the log line says. Not worth i
 call-site count; worth it the moment "show me this candidate's turns" needs to be a query instead of
 a read.
 
-**Driver's License validation** Currently I only do this with a yes/no question to the user, but a
-more robust way of doing this would be integrating a third-party identity validation service that 
-allows us to effectively confirm the person has a valid license.
+**Licence checking is self-reported.** Today it's a yes/no question and nothing verifies the
+answer. A third-party identity-verification service would confirm the licence actually exists and is
+valid, which is what the client would need before this gate carries any legal weight.
+
 ---
 
 ## Repository notes

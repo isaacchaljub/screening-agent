@@ -20,19 +20,20 @@ rejected.
 | # | Stage | Asks for | Branching |
 |---|-------|----------|-----------|
 | 0 | `GREETING` | — | Introduces the role and the company, states that answers are stored for this application, then asks for the candidate's full name directly — no separate "shall we start?" turn. Always advances. |
-| 1 | `LICENSE` | Valid driver's licence, yes/no | **No → `DISQUALIFIED`.** Hedged or unclear → re-ask once, then flag for a human. |
-| 2 | `CITY` | City or working zone | **Outside the service areas → `DISQUALIFIED`.** Unrecognised → re-ask once with nearby zones named. |
-| 3 | `AVAILABILITY` | Full-time / part-time / weekends | Always advances. |
-| 4 | `SCHEDULE` | Morning / afternoon / evening / flexible | Always advances. |
-| 5 | `EXPERIENCE` | Years, and which platforms | Zero experience is valid and does **not** disqualify. |
-| 6 | `START_DATE` | When they can begin | Always advances. |
-| 7 | `WRAP_UP` | — | Confirms what was captured, states next steps → `QUALIFIED`. |
+| 1 | `NAME` | Full name | Only reached if the greeting's reply didn't contain a usable name. Always advances. |
+| 2 | `LICENSE` | Valid driver's licence, yes/no | **No → `DISQUALIFIED`.** Hedged or unclear → re-ask once, then flag for a human. |
+| 3 | `CITY` | City or working zone | **Outside the service areas → `DISQUALIFIED`.** Unrecognised → re-ask once with nearby zones named. |
+| 4 | `AVAILABILITY` | Full-time / part-time / weekends | Always advances. |
+| 5 | `SCHEDULE` | Morning / afternoon / evening / flexible | Always advances. |
+| 6 | `EXPERIENCE` | Years, and which platforms | Zero experience is valid and does **not** disqualify. |
+| 7 | `START_DATE` | When they can begin | Always advances. |
+| 8 | `WRAP_UP` | — | Confirms what was captured, states next steps → `QUALIFIED`. |
 
 Terminal states: `QUALIFIED`, `DISQUALIFIED`, `NEEDS_HUMAN`, `ABANDONED`.
 
-**Why the two gates sit at positions 1 and 2.** A candidate who cannot qualify learns so within
-four messages instead of twelve. That respects their time, and it is the single largest lever on
-the client's wasted-recruiter-hours problem — an ineligible candidate now costs three messages of
+**Why the two gates sit at positions 2 and 3.** A candidate who cannot qualify learns so in three
+messages instead of eight. That respects their time, and it is the single largest lever on the
+client's wasted-recruiter-hours problem — an ineligible candidate now costs three messages of
 compute instead of a fifteen-minute call.
 
 **Answers arriving early are kept.** If a candidate volunteers "hi, I'm Ana, I have a licence and
@@ -45,14 +46,14 @@ still-empty stage. The stage order governs what is *asked*, not what may be *ans
 
 | Field | Type | Valid | Invalid → |
 |-------|------|-------|-----------|
-| `full_name` | string | Two or more words, letters and common name punctuation | Re-ask; refusals and placeholders rejected |
+| `full_name` | string | Two to four words, letters and common name punctuation | Re-ask; refusals, placeholders and sentence-like answers rejected |
 | `has_license` | boolean | An unambiguous yes or no | Hedges ("I'm taking the test") count as **no**, confirmed once before disqualifying |
 | `city` | string → zone id | Resolves to a listed service zone in Spain or Mexico | Unknown → re-ask once naming the nearest zones; still unknown → disqualify |
 | `availability` | enum | `full_time` · `part_time` · `weekends` | Re-ask offering the three options |
 | `preferred_schedule` | enum | `morning` · `afternoon` · `evening` · `flexible` | Re-ask offering the four options |
 | `experience_years` | number ≥ 0 | Any non-negative number; "none" resolves to 0 | Ranges resolve to their lower bound |
 | `experience_platforms` | list | Normalised against a known list; unknown names kept verbatim | Empty is valid when years is 0 |
-| `start_date` | date or `immediately` | An ISO date, or a relative expression resolved against today | Past dates re-asked; "not sure" accepted once and flagged |
+| `start_date` | date or `immediately` | An ISO date, or a relative expression resolved against today | Past and unparseable dates re-asked; a second failure goes to a human |
 
 **Two rules that matter more than the table.**
 
@@ -72,10 +73,10 @@ becomes the thing candidates complain about.
 resumes exactly where it stopped. A scheduler watches for conversations that are quiet and not
 terminal, and sends up to three follow-ups: roughly 45 minutes ("still there?"), one day
 (value-led — pay and shift length, the two things candidates actually want to know), and three days
-(a final note that the application will close). Any reply cancels the remainder. After the third,
-the conversation closes as `ABANDONED`. Follow-ups only send inside waking hours in the candidate's
-own country, and never before the city is known. Drop-off stage is recorded, which tells the client
-exactly which question loses people.
+(a final note that the application will close). Any reply cancels the remainder. The third message
+doubles as the close: it sends and the conversation ends as `ABANDONED` in one step. Follow-ups
+only send inside waking hours in the candidate's own country, and never before the city is known.
+Drop-off stage is recorded, which tells the client exactly which question loses people.
 
 **Invalid or ambiguous answers.** Validation returns a *reason*, not a boolean, and the reason
 becomes the next message — "I didn't catch a city there, do you mean Sevilla or Seville in the
@@ -106,9 +107,9 @@ disqualification.
 ## 4. Outcome paths
 
 **Qualified.** A summary is generated from the stored structured fields — never re-read from the
-transcript, so it cannot disagree with the data. The candidate is told what happens next and
-within what timeframe. A handoff payload (profile, transcript reference, timestamps, outcome) is
-written for the recruiter or an ATS.
+transcript, so it cannot disagree with the data. The candidate is told what happens next and within
+what timeframe. A handoff payload (profile, transcript, timestamps, outcome) is written for the
+recruiter or an ATS.
 
 **Disqualified.** Closed warmly and briefly. The reason is recorded for the client's reporting but
 not recited at the candidate beyond what they already know — someone who just said they have no
@@ -118,7 +119,8 @@ temporary (no licence yet), the close leaves the door open to reapply.
 **Needs human.** Everything captured so far is preserved and flagged with the field that failed,
 so a recruiter picks up with context rather than starting over.
 
-**Abandoned.** Partial data retained, drop-off stage recorded.
+**Abandoned.** Partial data retained, drop-off stage recorded. A conversation closed after
+off-script input lands here too.
 
 ---
 
@@ -144,22 +146,3 @@ These rules live in a configuration file that both the message-writing prompt an
 read, so "the agent got wordy" is a diff rather than an opinion. Every message the system sends
 reads them — including the follow-ups sent when a candidate goes quiet, which are composed by a
 separate, smaller prompt and are still the same brand speaking.
-
----
-
-## 6. Voice input
-
-A candidate may reply by voice instead of typing, from a mic button in the browser UI. The
-recording is transcribed (ElevenLabs Scribe, auto-detecting language, `voice/elevenlabs.py`) and
-the transcript becomes that turn's message — nothing downstream of that point knows or cares
-whether the text came from a keyboard or a microphone. Every rule above the fold applies exactly
-as written: the two-attempt cap, "never guess" on ambiguous input, and mid-conversation language
-switching (§3) all fire on a voice turn precisely as they would on a typed one, without special
-casing. Silence or an unintelligible recording transcribes to an empty string, which reads as an
-unanswered turn — "didn't catch that as an answer" — the same graceful path already defined for a
-silent typed reply.
-
-The agent's replies stay text-only. Speaking the reply back (TTS) is not implemented: it needs a
-paid ElevenLabs plan for API access to a usable voice.
-
----
