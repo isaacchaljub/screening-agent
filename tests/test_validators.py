@@ -387,3 +387,117 @@ def test_start_date_rejects_a_past_relative_reference(raw):
     # Reading "3 weeks ago" as a future offset would silently book someone in the past.
     result = validate_start_date(raw, date(2026, 8, 25))
     assert not result.accepted
+
+
+# --- availability: elliptical answers ------------------------------------------------------------
+# Regression, found live: the agent asks "¿tiempo completo, medio tiempo o fines de semana?" and a
+# real person answers "completo" — echoing back only the distinguishing word. The list held only
+# the full two-word phrases, so every short form was rejected, while _SCHEDULE_PHRASES had always
+# accepted the bare "tarde"/"noche". Same module, two different standards.
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("completo", Availability.FULL_TIME),
+        ("completa", Availability.FULL_TIME),
+        ("full", Availability.FULL_TIME),
+        ("medio", Availability.PART_TIME),
+        ("media", Availability.PART_TIME),
+        ("parcial", Availability.PART_TIME),
+        ("part", Availability.PART_TIME),
+        ("finde", Availability.WEEKENDS),
+        ("findes", Availability.WEEKENDS),
+        ("solo sabados y domingos", Availability.WEEKENDS),
+    ],
+)
+def test_availability_accepts_the_short_form_of_each_option(raw, expected):
+    result = validate_availability(raw)
+    assert result.accepted, result.reason
+    assert result.value == expected
+
+
+@pytest.mark.parametrize("raw", ["promedio", "aparte", "complemento", "semana", "tengo un coche"])
+def test_availability_short_forms_match_on_word_boundaries_not_substrings(raw):
+    # The whole reason matching moved from `in` to a word-boundary regex: "medio" lives inside
+    # "promedio" and "part" inside "aparte", so substring matching plus short tokens would have
+    # silently filed unrelated answers as a valid availability.
+    assert not validate_availability(raw).accepted
+
+
+def test_availability_full_phrases_still_work():
+    for raw, expected in (
+        ("tiempo completo", Availability.FULL_TIME),
+        ("jornada completa", Availability.FULL_TIME),
+        ("medio tiempo", Availability.PART_TIME),
+        ("tiempo parcial", Availability.PART_TIME),
+        ("fines de semana", Availability.WEEKENDS),
+        ("full-time", Availability.FULL_TIME),
+        ("part time", Availability.PART_TIME),
+        ("weekends", Availability.WEEKENDS),
+    ):
+        assert validate_availability(raw).value == expected
+
+
+# --- experience_years: units ---------------------------------------------------------------------
+# ⚠️ The worst bug found in this module, because it produced a *wrong value* rather than a
+# rejection: "6 meses" matched the bare-number regex and was stored as 6.0 YEARS. A recruiter would
+# have been handed a six-year veteran who has been driving for six months. R3's whole point.
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("6 meses", 0.5),
+        ("6 months", 0.5),
+        ("18 meses", 1.5),
+        ("medio año", 0.5),
+        ("half a year", 0.5),
+        ("2 años y medio", 2.5),
+    ],
+)
+def test_experience_years_converts_sub_year_durations_instead_of_reading_the_bare_number(
+    raw, expected
+):
+    result = validate_experience_years(raw)
+    assert result.accepted, result.reason
+    assert result.value == pytest.approx(expected)
+
+
+def test_experience_years_still_reads_plain_years():
+    for raw, expected in (("3 años", 3.0), ("3", 3.0), ("0.5", 0.5), ("10 years", 10.0)):
+        assert validate_experience_years(raw).value == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "raw", ["nada", "recién empiezo", "soy nuevo", "primera vez", "just starting", "first time"]
+)
+def test_experience_years_treats_more_beginner_phrasings_as_zero(raw):
+    result = validate_experience_years(raw)
+    assert result.accepted and result.value == 0.0
+
+
+@pytest.mark.parametrize("raw", ["un par", "un par de años", "a couple of years"])
+def test_experience_years_reads_a_pair_as_two_not_one(raw):
+    # "un par" must be checked before _WORD_NUMBERS, which would read its "un" as 1.
+    assert validate_experience_years(raw).value == pytest.approx(2.0)
+
+
+# --- has_license: more natural yes/no ------------------------------------------------------------
+
+
+@pytest.mark.parametrize("raw", ["por supuesto", "sip", "afirmativo", "claro", "desde luego"])
+def test_has_license_accepts_more_affirmatives(raw):
+    result = validate_has_license(raw)
+    assert result.accepted and result.value is True
+
+
+@pytest.mark.parametrize("raw", ["nope", "negativo", "qué va", "nunca"])
+def test_has_license_accepts_negatives_without_the_word_no(raw):
+    result = validate_has_license(raw)
+    assert result.accepted and result.value is False
+
+
+def test_has_license_hedge_still_wins_over_a_plain_negative():
+    result = validate_has_license("todavía no, me lo saco en junio")
+    assert result.accepted and result.value is False and result.needs_confirmation

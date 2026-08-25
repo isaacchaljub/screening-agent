@@ -148,7 +148,25 @@ _LICENSE_HEDGE_PHRASES = (
     "going to get",
     "soon",
 )
-_LICENSE_YES_WORDS = {"si", "yes", "yeah", "yep", "claro", "tengo", "sure"}
+_LICENSE_YES_WORDS = {
+    "si",
+    "yes",
+    "yeah",
+    "yep",
+    "yup",
+    "claro",
+    "tengo",
+    "sure",
+    "sip",
+    "afirmativo",
+    "correcto",
+    "exacto",
+    "obvio",
+    "desde luego",
+    "por supuesto",
+}
+# Negatives that do not contain the bare token "no" (which the check below already catches).
+_LICENSE_NO_WORDS = {"nope", "nah", "negativo", "nunca", "jamas", "ninguna", "qué va", "que va"}
 
 
 def validate_has_license(raw: str) -> FieldResult:
@@ -158,6 +176,8 @@ def validate_has_license(raw: str) -> FieldResult:
     if any(phrase in text for phrase in _LICENSE_HEDGE_PHRASES):
         return FieldResult(True, False, "hedged on licence status", needs_confirmation=True)
     if re.search(r"\bno\b", text) and "no se" not in text and "no lo se" not in text:
+        return FieldResult(True, False, None)
+    if any(re.search(rf"\b{re.escape(word)}\b", text) for word in _LICENSE_NO_WORDS):
         return FieldResult(True, False, None)
     if any(re.search(rf"\b{re.escape(word)}\b", text) for word in _LICENSE_YES_WORDS):
         return FieldResult(True, True, None)
@@ -212,16 +232,63 @@ def validate_city(raw: str, zones: Sequence[Zone]) -> FieldResult:
 
 # --- availability / preferred_schedule --------------------------------------------------------
 
+# ⚠️ Elliptical answers are the normal case, not an edge case. The agent asks "¿tiempo completo,
+# medio tiempo o fines de semana?" and a real person answers "completo" — echoing back only the
+# word that distinguishes the options. `extract.py` is also instructed to strip conversational
+# wrapping and return the value alone, so a bare token is what usually arrives here.
+#
+# This list originally held only the full two-word phrases, so "completo", "medio", "parcial",
+# "full", "part" and "finde" were all rejected — while `_SCHEDULE_PHRASES` below happily accepted
+# the bare "tarde" and "noche". Two validators in the same module, written to different standards;
+# the availability question is simply the one where the short form is most natural.
+#
+# Matching is by word boundary rather than substring precisely *because* these are now short:
+# a bare "part" as a substring would fire inside "aparte", and "medio" inside "promedio".
 _AVAILABILITY_PHRASES: dict[Availability, tuple[str, ...]] = {
-    Availability.FULL_TIME: ("full time", "full-time", "tiempo completo", "jornada completa"),
+    Availability.FULL_TIME: (
+        "full time",
+        "full-time",
+        "fulltime",
+        "full",
+        "tiempo completo",
+        "jornada completa",
+        "completo",
+        "completa",
+    ),
     Availability.PART_TIME: (
         "part time",
         "part-time",
+        "parttime",
+        "part",
         "medio tiempo",
         "media jornada",
         "tiempo parcial",
+        "medio",
+        "media",
+        "parcial",
     ),
-    Availability.WEEKENDS: ("weekends", "weekend", "fines de semana", "fin de semana"),
+    Availability.WEEKENDS: (
+        "weekends",
+        "weekend",
+        "fines de semana",
+        "fin de semana",
+        "findes",
+        "finde",
+        "sabados",
+        "sabado",
+        "domingos",
+        "domingo",
+    ),
+}
+
+# Compiled once. Word-boundary alternation per enum value, longest phrase first so "medio tiempo"
+# is preferred over the bare "medio" when both are present (same result here, but it keeps the
+# match spans honest if these are ever logged).
+_AVAILABILITY_RES: dict[Availability, re.Pattern[str]] = {
+    value: re.compile(
+        r"\b(?:" + "|".join(re.escape(p) for p in sorted(phrases, key=len, reverse=True)) + r")\b"
+    )
+    for value, phrases in _AVAILABILITY_PHRASES.items()
 }
 
 _SCHEDULE_PHRASES: dict[Schedule, tuple[str, ...]] = {
@@ -236,8 +303,8 @@ def validate_availability(raw: str) -> FieldResult:
     text = _norm(raw)
     if not text:
         return FieldResult(False, None, "need full-time, part-time, or weekends")
-    for value, phrases in _AVAILABILITY_PHRASES.items():
-        if any(phrase in text for phrase in phrases):
+    for value, pattern in _AVAILABILITY_RES.items():
+        if pattern.search(text):
             return FieldResult(True, value, None)
     return FieldResult(False, None, "need full-time, part-time, or weekends")
 
@@ -266,7 +333,25 @@ _NONE_EXPERIENCE_WORDS = (
     "no experiencia",
     "ninguna",
     "ninguno",
+    "nada",
+    "recien empiezo",
+    "es mi primera vez",
+    "primera vez",
+    "soy nuevo",
+    "soy nueva",
+    "nunca he trabajado",
+    "brand new",
+    "first time",
+    "just starting",
 )
+# ⚠️ A duration is a NUMBER PLUS A UNIT, and this validator's whole job is to return *years*.
+# "6 meses" used to match the bare-number regex below and be stored as **6.0 years** — not a
+# rejection, a silently wrong value handed to the recruiter, which is precisely the failure R3
+# ("never guess a field") exists to prevent. Months must be converted, and must be checked BEFORE
+# any bare number is read.
+_MONTHS_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(?:mes(?:es)?|months?|mo)\b")
+_HALF_YEAR_RE = re.compile(r"\bmedio\s+ano\b|\bhalf\s+a?\s*year\b")
+_YEAR_AND_A_HALF_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(?:anos?|years?)\s+y\s+medio")
 _NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?")
 _RANGE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(?:-|a|to|hasta)\s*(\d+(?:\.\d+)?)")
 _WORD_NUMBERS = {
@@ -295,6 +380,14 @@ def validate_experience_years(raw: str) -> FieldResult:
         return FieldResult(False, None, "how many years, roughly?")
     if any(word in text for word in _NONE_EXPERIENCE_WORDS):
         return FieldResult(True, 0.0, None)
+    if _HALF_YEAR_RE.search(text):
+        return FieldResult(True, 0.5, None)
+    half_match = _YEAR_AND_A_HALF_RE.search(text)
+    if half_match:
+        return FieldResult(True, float(half_match.group(1)) + 0.5, None)
+    months_match = _MONTHS_RE.search(text)
+    if months_match:
+        return FieldResult(True, round(float(months_match.group(1)) / 12, 3), None)
     range_match = _RANGE_RE.search(text)
     if range_match:
         return FieldResult(True, float(range_match.group(1)), None)
@@ -304,8 +397,9 @@ def validate_experience_years(raw: str) -> FieldResult:
         if value < 0:
             return FieldResult(False, None, "years can't be negative")
         return FieldResult(True, value, None)
-    if "par de" in text or "couple of" in text or "a couple" in text:
-        return FieldResult(True, 2.0, None)
+    if re.search(r"\bpar\b", text) or "couple" in text:
+        return FieldResult(True, 2.0, None)  # "un par (de años)" — checked before _WORD_NUMBERS,
+        # which would otherwise read the "un" in "un par" as 1
     for word, value in _WORD_NUMBERS.items():
         if re.search(rf"\b{word}\b", text):
             return FieldResult(True, float(value), None)

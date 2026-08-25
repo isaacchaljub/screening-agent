@@ -14,6 +14,7 @@ who were never eligible.
 - **Deployment & scaling:** [`docs/deployment.md`](docs/deployment.md)
 - **ATS integration spec:** [`docs/ats-integration.md`](docs/ats-integration.md)
 - **Sample conversations:** [`samples/`](samples/)
+- **Running it / demo runbook:** [`docs/serve.md`](docs/serve.md)
 
 ---
 

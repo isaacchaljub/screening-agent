@@ -41,8 +41,8 @@ class Zone:
 
 
 ZONES: tuple[Zone, ...] = (
-    Zone("madrid", "Madrid", "ES", "Europe/Madrid", ()),
-    Zone("barcelona", "Barcelona", "ES", "Europe/Madrid", ("Barna",)),
+    Zone("madrid", "Madrid", "ES", "Europe/Madrid", ("MAD",)),
+    Zone("barcelona", "Barcelona", "ES", "Europe/Madrid", ("Barna", "BCN")),
     Zone("valencia", "Valencia", "ES", "Europe/Madrid", ()),
     Zone("sevilla", "Sevilla", "ES", "Europe/Madrid", ("Seville",)),
     Zone("malaga", "Málaga", "ES", "Europe/Madrid", ("Malaga",)),
