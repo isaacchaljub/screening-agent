@@ -18,6 +18,7 @@ from screening_agent.llm.base import EmbedResult, Message, Provider, StructuredR
 from screening_agent.llm.providers import anthropic as anthropic_provider
 from screening_agent.llm.providers import chat_completions as chat_completions_provider
 from screening_agent.llm.providers import google as google_provider
+from screening_agent.llm.providers import local as local_provider
 from screening_agent.llm.providers import openai as openai_provider
 
 _PROVIDERS: dict[str, Provider] = {
@@ -25,6 +26,7 @@ _PROVIDERS: dict[str, Provider] = {
     "openai": openai_provider,  # Responses API (providers/openai.py)
     "anthropic": anthropic_provider,
     "groq": chat_completions_provider,  # OpenAI-compatible Chat Completions, different base_url/key
+    "local": local_provider,  # in-process sentence-transformers; embeddings only, no network
 }
 
 

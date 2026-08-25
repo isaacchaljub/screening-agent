@@ -225,8 +225,24 @@ def compose_nudge(
         f"Under {tone.max_words} words.",
         'No greeting like "hi again" and no sign-off.',
         "Never invent pay or policy details beyond what's given below.",
-        _NUDGE_INSTRUCTIONS[nudge_index],
     ]
+    # A nudge is still the same brand speaking, so it takes the same tone constants the reply path
+    # takes — this prompt used to read only `max_words`, and the drift was visible live: the 3-day
+    # nudge came back in Rioplatense voseo ("¿Seguís interesado? ... si no respondés, podés volver
+    # a aplicar"), which is neither of this client's two markets. Sharing `config.TONE` between the
+    # two prompts is the whole point of the constants living in config rather than in prompt text.
+    if tone.one_question_per_message:
+        lines.append("At most one question.")
+    if tone.no_bullet_lists:
+        lines.append("No bullet lists — write like a text message.")
+    if language == Language.ES:
+        lines.append(
+            f'Spanish uses the "{tone.spanish_register}" register — never "usted", and never '
+            'voseo ("vos"/"tenés"/"podés"). Neutral Spain/Mexico Spanish.'
+        )
+    # `acknowledge_before_asking` is deliberately NOT applied: there is no previous candidate
+    # message to acknowledge — that is what makes this a nudge rather than a reply.
+    lines.append(_NUDGE_INSTRUCTIONS[nudge_index])
     if faq_facts:
         lines.append(
             "Facts you may draw on, verbatim — don't add to them: " + " | ".join(faq_facts)

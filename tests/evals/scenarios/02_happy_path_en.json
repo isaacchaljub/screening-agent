@@ -1,6 +1,6 @@
 {
   "name": "happy_path_en",
-  "description": "Full happy path, English throughout.",
+  "description": "Full happy path, English throughout. Start date is phrased the way a candidate actually types it, not as ISO.",
   "messages": [
     "Hi",
     "My name is James Carter",
@@ -9,7 +9,7 @@
     "Part time",
     "Morning",
     "1 year with Uber Eats",
-    "I can start 2026-09-20",
+    "I can start September 20th",
     "Thanks"
   ],
   "expected_outcome": "qualified",
@@ -20,7 +20,9 @@
     "availability": "part_time",
     "preferred_schedule": "morning",
     "experience_years": 1.0,
-    "experience_platforms": ["Uber Eats"],
+    "experience_platforms": [
+      "Uber Eats"
+    ],
     "start_date": "2026-09-20"
   }
 }

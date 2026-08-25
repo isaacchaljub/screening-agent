@@ -87,7 +87,11 @@ attempts per field, then a human.
 candidate, mid-conversation, without comment or restart. A message mixing Spanish and English gets
 a reply in whichever dominates, preserving loanwords the candidate used ("¿tienes coche o moto?"
 stays "moto", not "motorcycle"). Both languages are supported end to end, including the FAQ, which
-is retrieved by meaning rather than keyword so a Spanish question reaches an English answer.
+is retrieved by meaning rather than keyword — the knowledge base is embedded as one bilingual
+collection with no language filter, so a question finds the closest answer regardless of which
+language it was written in. In practice the same-language entry wins, which is the better outcome:
+the retrieved fact is then already in the candidate's language and does not have to be translated
+on the way into the reply.
 
 **The candidate asks a question instead of answering.** Common enough to design for. The question
 is answered from the FAQ in one sentence, then the outstanding stage question is re-asked in the
@@ -133,6 +137,31 @@ This is messaging. The reference is how a good recruiter texts, not how a compan
   One word, not a sentence.
 - **Never invent policy.** Pay, contract type and shift patterns come from the FAQ or not at all.
   "I'll check with the team" is an acceptable answer; a plausible-sounding invented number is not.
+  The message-writing step is given one retrieved fact and told it may use only that text, so the
+  boundary between "answered from the knowledge base" and "made up" is enforced by what the model
+  is given, not by asking it to be careful.
 
 These rules live in a configuration file that both the message-writing prompt and the test suite
-read, so "the agent got wordy" is a diff rather than an opinion.
+read, so "the agent got wordy" is a diff rather than an opinion. Every message the system sends
+reads them — including the follow-ups sent when a candidate goes quiet, which are composed by a
+separate, smaller prompt and are still the same brand speaking.
+
+---
+
+## 6. Data handling
+
+The candidate is told at the greeting that their answers are stored for this application. That
+sentence is the commitment the rest of the design is held to.
+
+- **Answers go to the database; they never go to the application log.** A logged message is reduced
+  to a length and a short hash — enough to correlate log lines across a retry, never enough to
+  reconstruct what someone wrote. Logs are longer-lived, more widely read, and more often shipped
+  to third parties than the database the candidate was told about.
+- **No candidate text reaches a model tier that may train on it.** Free vendor tiers generally
+  reserve the right to use submitted prompts to improve their products, so the system refuses to
+  start if one is selected outside local development. This is checked at startup rather than left
+  to a deployment convention.
+- **Answering questions from the knowledge base requires no third party at all.** The retrieval
+  step runs a small model in-process rather than sending the candidate's question to a vendor. This
+  matters because a question is the one thing a candidate writes that is unpredictable — a name or
+  a city is a field, but "¿me pagan si me lesiono?" is whatever they chose to say.

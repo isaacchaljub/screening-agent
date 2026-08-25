@@ -27,7 +27,17 @@ START = datetime(2026, 8, 24, 7, 0, tzinfo=UTC)
 
 
 def main() -> None:
-    store = Store(db_path=Path("data") / "reengage_demo.db", exports_dir=Path("samples"))
+    # A throwaway database per run, deleted first. The demo uses a fixed CONVERSATION_ID so its
+    # output is easy to follow, which means a second run would otherwise die on the primary key
+    # ("UNIQUE constraint failed: conversations.id"). A demo you can only run once is a demo that
+    # fails the second time you show it to someone.
+    db_path = Path("data") / "reengage_demo.db"
+    for path in (
+        db_path,
+        *(db_path.with_name(db_path.name + sfx) for sfx in ("-journal", "-wal", "-shm")),
+    ):
+        path.unlink(missing_ok=True)  # sidecars too: a stale journal from a crashed run is a lock
+    store = Store(db_path=db_path, exports_dir=Path("samples"))
     client = LLMClient()
 
     store.create_conversation(CONVERSATION_ID)

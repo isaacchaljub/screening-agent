@@ -38,7 +38,14 @@ from openai import OpenAI
 from pydantic import BaseModel, ValidationError
 
 from screening_agent import config
-from screening_agent.llm.base import EmbedResult, Message, SchemaError, StructuredResult, TextResult
+from screening_agent.llm.base import (
+    EmbedResult,
+    Message,
+    SchemaError,
+    StructuredResult,
+    TextResult,
+    TruncatedResponseError,
+)
 from screening_agent.llm.registry import ModelSpec
 from screening_agent.llm.retry import TransportError
 
@@ -87,10 +94,19 @@ def complete_text(
         )
     except _TRANSPORT_ERRORS as exc:
         raise TransportError(f"{spec.vendor} transport error: {exc}", original=exc) from exc
+    choice = response.choices[0]
+    # Chat Completions spells truncation `finish_reason == "length"`. GPT-OSS's hidden reasoning
+    # tokens count against `max_completion_tokens`, so this is reachable the same way it is on a
+    # thinking Anthropic model — see base.TruncatedResponseError.
+    if choice.finish_reason == "length" and not (choice.message.content or "").strip():
+        raise TruncatedResponseError(
+            f"{spec.vendor} hit max_completion_tokens "
+            f"({call_params.get('max_completion_tokens')}) before producing any text"
+        )
     usage = response.usage
     return TextResult(
-        text=response.choices[0].message.content or "",
-        model=spec.model_id,
+        text=choice.message.content or "",
+        model=spec.full_name,
         input_tokens=getattr(usage, "prompt_tokens", None),
         output_tokens=getattr(usage, "completion_tokens", None),
     )
@@ -124,7 +140,13 @@ def complete_structured(
         )
     except _TRANSPORT_ERRORS as exc:
         raise TransportError(f"{spec.vendor} transport error: {exc}", original=exc) from exc
-    content = response.choices[0].message.content
+    choice = response.choices[0]
+    content = choice.message.content
+    if choice.finish_reason == "length":
+        raise TruncatedResponseError(
+            f"{spec.vendor} hit max_completion_tokens "
+            f"({call_params.get('max_completion_tokens')}) before finishing {schema.__name__}"
+        )
     try:
         parsed = schema.model_validate_json(content) if content else None
     except ValidationError as exc:
@@ -134,7 +156,7 @@ def complete_structured(
     usage = response.usage
     return StructuredResult(
         data=parsed,
-        model=spec.model_id,
+        model=spec.full_name,
         input_tokens=getattr(usage, "prompt_tokens", None),
         output_tokens=getattr(usage, "completion_tokens", None),
     )

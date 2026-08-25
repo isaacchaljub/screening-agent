@@ -1,6 +1,6 @@
 {
   "name": "language_switch",
-  "description": "Starts in Spanish, switches to English from turn 3 onward — the reply should follow without comment or restart.",
+  "description": "Starts in Spanish, switches to English from turn 3 onward — the reply should follow without comment or restart. Start date is phrased the way a candidate actually types it, not as ISO.",
   "messages": [
     "Hola",
     "Me llamo Diego Torres",
@@ -9,7 +9,7 @@
     "Full time",
     "Evening",
     "4 years with Uber Eats and Glovo",
-    "I can start 2026-09-12",
+    "I can start in 3 weeks",
     "Thanks"
   ],
   "expected_outcome": "qualified",
@@ -20,7 +20,11 @@
     "availability": "full_time",
     "preferred_schedule": "evening",
     "experience_years": 4.0,
-    "experience_platforms": ["Uber Eats", "Glovo"],
-    "start_date": "2026-09-12"
-  }
+    "experience_platforms": [
+      "Uber Eats",
+      "Glovo"
+    ],
+    "start_date": "2026-09-15"
+  },
+  "today": "2026-08-25"
 }

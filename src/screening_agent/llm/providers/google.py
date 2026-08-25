@@ -36,7 +36,14 @@ from google import genai
 from google.genai import errors as genai_errors
 from pydantic import BaseModel
 
-from screening_agent.llm.base import EmbedResult, Message, SchemaError, StructuredResult, TextResult
+from screening_agent.llm.base import (
+    EmbedResult,
+    Message,
+    SchemaError,
+    StructuredResult,
+    TextResult,
+    TruncatedResponseError,
+)
 from screening_agent.llm.registry import ModelSpec
 from screening_agent.llm.retry import TransportError
 
@@ -75,14 +82,27 @@ def _generate(spec: ModelSpec, messages: list[Message], params: dict[str, Any]) 
         raise TransportError(f"google transport error: {exc}", original=exc) from exc
 
 
+def _hit_token_cap(response: Any) -> bool:
+    """Google reports truncation as `finish_reason == MAX_TOKENS` on the candidate, not on the
+    response — and reports it as an enum, so compare by name rather than importing the type."""
+    candidate = next(iter(response.candidates or []), None)
+    finish_reason = getattr(candidate, "finish_reason", None)
+    return getattr(finish_reason, "name", str(finish_reason)) == "MAX_TOKENS"
+
+
 def complete_text(
     spec: ModelSpec, *, messages: list[Message], params: dict[str, Any]
 ) -> TextResult:
     response = _generate(spec, messages, params)
+    if _hit_token_cap(response) and not (response.text or "").strip():
+        raise TruncatedResponseError(
+            f"google hit max_output_tokens ({params.get('max_output_tokens')}) before producing "
+            "any text"
+        )
     usage = response.usage_metadata
     return TextResult(
         text=response.text or "",
-        model=spec.model_id,
+        model=spec.full_name,
         input_tokens=getattr(usage, "prompt_token_count", None),
         output_tokens=getattr(usage, "candidates_token_count", None),
     )
@@ -93,11 +113,16 @@ def complete_structured(
 ) -> StructuredResult:
     response = _generate(spec, messages, params)
     if response.parsed is None:
+        if _hit_token_cap(response):
+            raise TruncatedResponseError(
+                f"google hit max_output_tokens ({params.get('max_output_tokens')}) before "
+                f"finishing {schema.__name__}"
+            )
         raise SchemaError(f"google did not return a parsed {schema.__name__}: {response.text!r}")
     usage = response.usage_metadata
     return StructuredResult(
         data=response.parsed,
-        model=spec.model_id,
+        model=spec.full_name,
         input_tokens=getattr(usage, "prompt_token_count", None),
         output_tokens=getattr(usage, "candidates_token_count", None),
     )
@@ -118,4 +143,4 @@ def embed(spec: ModelSpec, *, texts: list[str], params: dict[str, Any]) -> Embed
     except (TimeoutError, ConnectionError) as exc:
         raise TransportError(f"google transport error: {exc}", original=exc) from exc
     vectors = [list(item.values or []) for item in response.embeddings or []]
-    return EmbedResult(vectors=vectors, model=spec.model_id)
+    return EmbedResult(vectors=vectors, model=spec.full_name)

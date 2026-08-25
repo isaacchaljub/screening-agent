@@ -380,6 +380,142 @@ _WEEKDAYS: dict[str, int] = {
 }
 
 
+# Month names, ES + EN, with the abbreviations people actually type. Accents are already
+# stripped by `_norm`, so "septiembre" covers "Septiembre" and "setiembre" is the common
+# Latin-American spelling.
+_MONTHS: dict[str, int] = {
+    "enero": 1,
+    "ene": 1,
+    "january": 1,
+    "jan": 1,
+    "febrero": 2,
+    "feb": 2,
+    "february": 2,
+    "marzo": 3,
+    "march": 3,
+    "abril": 4,
+    "abr": 4,
+    "april": 4,
+    "apr": 4,
+    "mayo": 5,
+    "may": 5,
+    "junio": 6,
+    "june": 6,
+    "jun": 6,
+    "julio": 7,
+    "july": 7,
+    "jul": 7,
+    "agosto": 8,
+    "ago": 8,
+    "august": 8,
+    "aug": 8,
+    "septiembre": 9,
+    "setiembre": 9,
+    "september": 9,
+    "sept": 9,
+    "sep": 9,
+    "octubre": 10,
+    "october": 10,
+    "oct": 10,
+    "noviembre": 11,
+    "november": 11,
+    "nov": 11,
+    "diciembre": 12,
+    "december": 12,
+    "dic": 12,
+    "dec": 12,
+}
+# Longest-first, so "septiembre" is tried before "sep" and "march" before "mar".
+_MONTH_ALT = "|".join(sorted(_MONTHS, key=len, reverse=True))
+# "15 de septiembre", "15 septiembre 2026", "15 de septiembre de 2026"
+_DAY_MONTH_RE = re.compile(
+    rf"\b(\d{{1,2}})\s*(?:de\s+)?({_MONTH_ALT})\b(?:\s*(?:de\s+)?(\d{{4}}))?"
+)
+# "September 15", "Sept 15th, 2026"
+_MONTH_DAY_RE = re.compile(rf"\b({_MONTH_ALT})\s+(\d{{1,2}})(?:st|nd|rd|th)?\b(?:,?\s*(\d{{4}}))?")
+# "en 2 semanas", "in 3 days", "en un mes" — and, critically, the bare "3 semanas" / "3 weeks".
+# The leading preposition is OPTIONAL on purpose. `extract.py` is instructed to "strip
+# conversational wrapping — extract the value alone, not the sentence around it", so
+# "I can start in 3 weeks" reaches this validator as `"3 weeks"`, not as the original sentence.
+# Requiring the preposition made the extraction prompt and this validator contradict each other,
+# and the contradiction was invisible to any test that fed this function a whole sentence.
+_NUMBER_WORDS: dict[str, int] = {
+    "un": 1,
+    "una": 1,
+    "uno": 1,
+    "a": 1,
+    "an": 1,
+    "one": 1,
+    "dos": 2,
+    "two": 2,
+    "tres": 3,
+    "three": 3,
+    "cuatro": 4,
+    "four": 4,
+    "cinco": 5,
+    "five": 5,
+    "seis": 6,
+    "six": 6,
+    "ocho": 8,
+    "eight": 8,
+}
+_RELATIVE_RE = re.compile(
+    r"\b(?:en|in|dentro de)?\s*(\d+|"
+    + "|".join(sorted(_NUMBER_WORDS, key=len, reverse=True))
+    + r")\s*"
+    r"(dias?|days?|semanas?|weeks?|meses|mes|months?|month)\b"
+)
+# "hace 3 semanas" / "3 weeks ago" is a *past* reference — a nonsensical answer to "when can you
+# start?", and reading it as a future offset would silently book someone three weeks ago.
+_PAST_REFERENCE_RE = re.compile(r"\bhace\b|\bago\b")
+_NEXT_WEEK_RE = re.compile(r"\b(?:la\s+)?(?:proxima|siguiente)\s+semana\b|\bnext\s+week\b")
+
+
+def _add_months(start: date, months: int) -> date:
+    """Calendar-correct month arithmetic, clamping to the last valid day (31 Jan + 1 month =
+    28/29 Feb, not an invalid date)."""
+    month_index = start.month - 1 + months
+    year = start.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(
+        start.day,
+        [
+            31,
+            29 if year % 4 == 0 and (year % 100 or not year % 400) else 28,
+            31,
+            30,
+            31,
+            30,
+            31,
+            31,
+            30,
+            31,
+            30,
+            31,
+        ][month - 1],
+    )
+    return date(year, month, day)
+
+
+def _resolve_bare_month_date(day: int, month: int, year: int | None, today: date) -> date | None:
+    """A month name with no year means the *next* time that date comes round — this year if it
+    hasn't passed, otherwise next. Someone saying "el 15 de septiembre" in December means next
+    September, and reading it as a date nine months in the past would reject a valid answer."""
+    if year is not None:
+        try:
+            return date(year, month, day)
+        except ValueError:
+            return None
+    for candidate_year in (today.year, today.year + 1):
+        try:
+            candidate = date(candidate_year, month, day)
+        except ValueError:
+            return None
+        if candidate >= today:
+            return candidate
+    return None
+
+
 def _next_weekday(today: date, target_idx: int) -> date:
     days_ahead = (target_idx - today.weekday()) % 7
     if days_ahead == 0:
@@ -412,6 +548,19 @@ def validate_start_date(raw: str, today: date) -> FieldResult:
             return FieldResult(False, None, "that date has already passed")
         return FieldResult(True, StartDateAnswer(candidate, False), None)
 
+    if _NEXT_WEEK_RE.search(text):
+        return FieldResult(True, StartDateAnswer(today + timedelta(days=7), False), None)
+
+    relative_match = None if _PAST_REFERENCE_RE.search(text) else _RELATIVE_RE.search(text)
+    if relative_match:
+        raw_count, unit = relative_match.groups()
+        count = _NUMBER_WORDS.get(raw_count) or int(raw_count)
+        if unit.startswith(("dia", "day")):
+            return FieldResult(True, StartDateAnswer(today + timedelta(days=count), False), None)
+        if unit.startswith(("semana", "week")):
+            return FieldResult(True, StartDateAnswer(today + timedelta(weeks=count), False), None)
+        return FieldResult(True, StartDateAnswer(_add_months(today, count), False), None)
+
     dmy_match = re.search(r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})", text)
     if dmy_match:
         day, month, year = (int(group) for group in dmy_match.groups())
@@ -422,5 +571,24 @@ def validate_start_date(raw: str, today: date) -> FieldResult:
         if candidate < today:
             return FieldResult(False, None, "that date has already passed")
         return FieldResult(True, StartDateAnswer(candidate, False), None)
+
+    # Month names last, so an explicit numeric format above always wins. This is how a candidate
+    # actually writes a date ("el 15 de septiembre") — every eval scenario happened to use ISO
+    # format, which is why the suite never caught that this was missing; a live sample did.
+    for pattern, day_first in ((_DAY_MONTH_RE, True), (_MONTH_DAY_RE, False)):
+        match = pattern.search(text)
+        if not match:
+            continue
+        first, second, year_group = match.groups()
+        day = int(first) if day_first else int(second)
+        month = _MONTHS[second if day_first else first]
+        resolved = _resolve_bare_month_date(
+            day, month, int(year_group) if year_group else None, today
+        )
+        if resolved is None:
+            return FieldResult(False, None, "that date doesn't look valid")
+        if resolved < today:
+            return FieldResult(False, None, "that date has already passed")
+        return FieldResult(True, StartDateAnswer(resolved, False), None)
 
     return FieldResult(False, None, "didn't catch a date there")

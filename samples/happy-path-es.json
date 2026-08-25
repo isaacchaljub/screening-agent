@@ -1,0 +1,102 @@
+{
+  "conversation_id": "happy-path-es",
+  "stage": "wrap_up",
+  "outcome": "qualified",
+  "disqualify_reason": null,
+  "language": "es",
+  "profile": {
+    "full_name": "Laura Fernández",
+    "has_license": true,
+    "city_raw": "Barcelona",
+    "zone_id": "barcelona",
+    "availability": "full_time",
+    "preferred_schedule": "afternoon",
+    "experience_years": 3.0,
+    "experience_platforms": [
+      "Glovo",
+      "Rappi"
+    ],
+    "start_date": "2026-09-15",
+    "starts_immediately": false
+  },
+  "transcript": [
+    {
+      "role": "agent",
+      "content": "¡Hola! Soy asistente de selección de Grupo Sazón para el puesto de repartidor. Tus respuestas quedan guardadas en esta postulación. ¿Empezamos?"
+    },
+    {
+      "role": "candidate",
+      "content": "Hola"
+    },
+    {
+      "role": "agent",
+      "content": "Perfecto. Para empezar, ¿me compartes tu nombre completo?"
+    },
+    {
+      "role": "candidate",
+      "content": "Me llamo Laura Fernández"
+    },
+    {
+      "role": "agent",
+      "content": "Gracias, Laura. ¿Tienes licencia de conducir vigente, sí o no?"
+    },
+    {
+      "role": "candidate",
+      "content": "Sí, tengo licencia"
+    },
+    {
+      "role": "agent",
+      "content": "¡Genial, Laura! ¿En qué ciudad o zona trabajarías?"
+    },
+    {
+      "role": "candidate",
+      "content": "Vivo en Barcelona"
+    },
+    {
+      "role": "agent",
+      "content": "Perfecto, Barcelona. ¿Tu disponibilidad sería tiempo completo, medio tiempo o fines de semana?"
+    },
+    {
+      "role": "candidate",
+      "content": "Tiempo completo"
+    },
+    {
+      "role": "agent",
+      "content": "Entendido, tiempo completo. ¿Qué turno prefieres: mañana, tarde, noche o flexible?"
+    },
+    {
+      "role": "candidate",
+      "content": "Por la tarde"
+    },
+    {
+      "role": "agent",
+      "content": "¿Cuántos años de experiencia en reparto tienes y en qué plataformas has trabajado?"
+    },
+    {
+      "role": "candidate",
+      "content": "3 años en Glovo y Rappi"
+    },
+    {
+      "role": "agent",
+      "content": "Genial, 3 años en Glovo y Rappi. ¿Cuál sería tu fecha de inicio?"
+    },
+    {
+      "role": "candidate",
+      "content": "Puedo empezar el 15 de septiembre"
+    },
+    {
+      "role": "agent",
+      "content": "¡Perfecto, Laura! Con eso ya tengo todo lo necesario; un reclutador te contactará pronto para seguir el proceso."
+    },
+    {
+      "role": "candidate",
+      "content": "Gracias"
+    },
+    {
+      "role": "agent",
+      "content": "¡Gracias a ti, Laura! Mucho éxito, pronto tendrás noticias nuestras."
+    }
+  ],
+  "summary": "Laura Fernández — Barcelona. Licence: yes. Availability: full_time, afternoon shift. Experience: 3.0 years (Glovo, Rappi). Start: 2026-09-15.",
+  "exported_at": "2026-08-25T07:04:10.383851+00:00"
+}

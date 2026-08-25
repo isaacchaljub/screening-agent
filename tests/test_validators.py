@@ -1,5 +1,7 @@
 from datetime import date
 
+import pytest
+
 from screening_agent.config import ZONES
 from screening_agent.models import Availability, Schedule
 from screening_agent.validators import (
@@ -283,4 +285,105 @@ def test_start_date_immediate_english():
 
 def test_start_date_unparseable_rejected():
     result = validate_start_date("whenever works I guess", TODAY)
+    assert not result.accepted
+
+
+# --- start_date: natural-language dates ---------------------------------------------------------
+# Regression. Every eval scenario happened to phrase the start date in ISO format
+# ("2026-09-15"), so the suite was green while the validator could not parse the way a candidate
+# actually types one. Caught by a live sample conversation: "Puedo empezar el 15 de septiembre"
+# was rejected twice and escalated a clean happy path to NEEDS_HUMAN.
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("el 15 de septiembre", date(2026, 9, 15)),
+        ("Puedo empezar el 15 de septiembre", date(2026, 9, 15)),
+        ("15 septiembre 2026", date(2026, 9, 15)),
+        ("15 de septiembre de 2026", date(2026, 9, 15)),
+        ("1 de octubre", date(2026, 10, 1)),
+        ("setiembre 30", date(2026, 9, 30)),
+        ("September 15", date(2026, 9, 15)),
+        ("Sept 15th, 2026", date(2026, 9, 15)),
+        ("I can start October 1", date(2026, 10, 1)),
+    ],
+)
+def test_start_date_accepts_month_names_in_both_languages(raw, expected):
+    result = validate_start_date(raw, date(2026, 8, 25))
+    assert result.accepted, result.reason
+    assert result.value.date == expected
+    assert result.value.immediate is False
+
+
+def test_start_date_month_without_a_year_rolls_forward_rather_than_reading_as_past():
+    # "el 3 de enero" said in August means next January. Reading it as this year would put it
+    # seven months in the past and reject a perfectly good answer.
+    result = validate_start_date("el 3 de enero", date(2026, 8, 25))
+    assert result.accepted
+    assert result.value.date == date(2027, 1, 3)
+
+
+def test_start_date_explicit_past_year_is_still_rejected():
+    result = validate_start_date("15 de septiembre de 2020", date(2026, 8, 25))
+    assert not result.accepted
+    assert "passed" in result.reason
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("en 2 semanas", date(2026, 9, 8)),
+        ("in 3 days", date(2026, 8, 28)),
+        ("en un mes", date(2026, 9, 25)),
+        ("la proxima semana", date(2026, 9, 1)),
+        ("next week", date(2026, 9, 1)),
+    ],
+)
+def test_start_date_accepts_relative_spans(raw, expected):
+    result = validate_start_date(raw, date(2026, 8, 25))
+    assert result.accepted, result.reason
+    assert result.value.date == expected
+
+
+def test_start_date_month_arithmetic_clamps_to_a_valid_day():
+    # 31 Jan + 1 month must be 28 Feb, not an invalid 31 Feb.
+    result = validate_start_date("en un mes", date(2027, 1, 31))
+    assert result.accepted
+    assert result.value.date == date(2027, 2, 28)
+
+
+def test_start_date_numeric_formats_still_win_over_month_names():
+    # An explicit numeric date is unambiguous and must not be reinterpreted by the looser
+    # month-name pass that runs after it.
+    result = validate_start_date("15/09/2026", date(2026, 8, 25))
+    assert result.accepted
+    assert result.value.date == date(2026, 9, 15)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        # ⚠️ These are what `extract.py` ACTUALLY hands this validator. Its prompt says "strip
+        # conversational wrapping — extract the value alone, not the sentence around it", so
+        # "I can start in 3 weeks" arrives here as "3 weeks". Traced live. Testing this function
+        # with whole sentences hid a contradiction between the two rules for a full eval sweep.
+        ("3 weeks", date(2026, 9, 15)),
+        ("3 semanas", date(2026, 9, 15)),
+        ("two weeks", date(2026, 9, 8)),
+        ("tres semanas", date(2026, 9, 15)),
+        ("un mes", date(2026, 9, 25)),
+        ("5 days", date(2026, 8, 30)),
+    ],
+)
+def test_start_date_accepts_a_bare_relative_span_without_its_preposition(raw, expected):
+    result = validate_start_date(raw, date(2026, 8, 25))
+    assert result.accepted, result.reason
+    assert result.value.date == expected
+
+
+@pytest.mark.parametrize("raw", ["hace 3 semanas", "3 weeks ago"])
+def test_start_date_rejects_a_past_relative_reference(raw):
+    # Reading "3 weeks ago" as a future offset would silently book someone in the past.
+    result = validate_start_date(raw, date(2026, 8, 25))
     assert not result.accepted

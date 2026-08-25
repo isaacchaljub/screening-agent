@@ -58,9 +58,16 @@ def _hinted_delay(exc: TransportError) -> float | None:
     return None
 
 
-def _wait_seconds(attempt: int, exc: TransportError) -> float:
+def _wait_seconds(attempt: int, exc: TransportError) -> float | None:
+    """`None` means: fail now, don't sleep. A hinted delay above `MAX_DELAY_SECONDS` (e.g. a 429
+    hinting "try again in 3600.5s") used to be honoured verbatim, blocking the request thread for
+    up to an hour — the exponential-backoff path was already capped at `MAX_DELAY_SECONDS`, but
+    the hinted path wasn't. Above the ceiling, holding the connection open buys nothing a real
+    caller wants; failing immediately instead lets `llm/fallback.py` try the backup vendor."""
     hinted = _hinted_delay(exc)
     if hinted is not None:
+        if hinted > MAX_DELAY_SECONDS:
+            return None
         return hinted + random.uniform(0, 0.5)
     backoff = min(MAX_DELAY_SECONDS, BASE_DELAY_SECONDS * (2 ** (attempt - 1)))
     return backoff * (0.5 + random.random())
@@ -75,6 +82,9 @@ def call_with_retry(fn: Callable[[], T], *, sleep: Callable[[float], None] = tim
             last_exc = exc
             if attempt == MAX_ATTEMPTS:
                 break
-            sleep(_wait_seconds(attempt, exc))
+            wait = _wait_seconds(attempt, exc)
+            if wait is None:
+                break
+            sleep(wait)
     assert last_exc is not None  # loop always sets this before falling through
     raise last_exc

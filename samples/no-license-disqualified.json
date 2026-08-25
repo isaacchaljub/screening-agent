@@ -1,0 +1,51 @@
+{
+  "conversation_id": "no-license-disqualified",
+  "stage": "license",
+  "outcome": "disqualified",
+  "disqualify_reason": "no_license",
+  "language": "es",
+  "profile": {
+    "full_name": "Pedro Gómez",
+    "has_license": false,
+    "city_raw": null,
+    "zone_id": null,
+    "availability": null,
+    "preferred_schedule": null,
+    "experience_years": null,
+    "experience_platforms": [],
+    "start_date": null,
+    "starts_immediately": false
+  },
+  "transcript": [
+    {
+      "role": "agent",
+      "content": "¡Hola! Soy el asistente de selección de Grupo Sazón para el puesto de repartidor. Tus respuestas quedan guardadas en esta solicitud. ¿Empezamos?"
+    },
+    {
+      "role": "candidate",
+      "content": "Hola"
+    },
+    {
+      "role": "agent",
+      "content": "¡Perfecto! Para empezar, ¿me compartes tu nombre completo?"
+    },
+    {
+      "role": "candidate",
+      "content": "Me llamo Pedro Gómez"
+    },
+    {
+      "role": "agent",
+      "content": "Gracias, Pedro. ¿Tienes licencia de conducir vigente, sí o no?"
+    },
+    {
+      "role": "candidate",
+      "content": "No, no tengo licencia"
+    },
+    {
+      "role": "agent",
+      "content": "Entendido, Pedro. Sin licencia no podemos avanzar ahora, pero cuando la tengas, ¡vuelve a postularte con gusto! Éxitos."
+    }
+  ],
+  "summary": "Pedro Gómez — unknown city. Licence: no. Availability: unspecified, unspecified shift. Experience: unspecified years (none). Start: unspecified.",
+  "exported_at": "2026-08-25T07:00:38.947832+00:00"
+}

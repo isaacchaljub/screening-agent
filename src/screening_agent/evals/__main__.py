@@ -14,7 +14,13 @@ import sys
 from pathlib import Path
 
 from screening_agent.evals.report import render_report
-from screening_agent.evals.runner import SCENARIOS_DIR, load_scenarios, run_all
+from screening_agent.evals.runner import (
+    ROLES_MODE,
+    SCENARIOS_DIR,
+    ScenarioResult,
+    load_scenarios,
+    run_all,
+)
 
 DEFAULT_REPORT_PATH = Path("_internal") / "eval_report.md"
 
@@ -29,7 +35,10 @@ def main() -> None:
         action="append",
         required=True,
         dest="models",
-        help="vendor:model-id (repeatable)",
+        help=(
+            "vendor:model-id, forcing both the extract and compose calls onto that one model; "
+            f"or {ROLES_MODE!r} to run the real registry.ROLES split instead (repeatable)"
+        ),
     )
     run_parser.add_argument("--scenarios-dir", type=Path, default=SCENARIOS_DIR)
     run_parser.add_argument("--out", type=Path, default=DEFAULT_REPORT_PATH)
@@ -40,11 +49,21 @@ def main() -> None:
     if not scenarios:
         parser.error(f"no scenario files found in {args.scenarios_dir}")
 
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+
     print(
         f"running {len(scenarios)} scenarios against {len(args.models)} model(s)...",
         file=sys.stderr,
     )
-    results = run_all(scenarios, models=args.models)
+
+    def write_partial_report(results_so_far: list[ScenarioResult]) -> None:
+        # Written after every model finishes its sweep, not just once at the very end — a long
+        # sweep killed mid-run (a quota exhaustion, a Ctrl-C) still leaves every completed model's
+        # results on disk instead of losing the whole run.
+        args.out.write_text(render_report(results_so_far), encoding="utf-8")
+        print(f"[partial report written to {args.out}]", file=sys.stderr)
+
+    results = run_all(scenarios, models=args.models, on_model_done=write_partial_report)
 
     for result in results:
         status = "PASS" if result.outcome_match else "FAIL"
@@ -53,9 +72,9 @@ def main() -> None:
         )
         print(f"  [{status}] {result.scenario} @ {result.model} — {detail}", file=sys.stderr)
 
+    # The last `write_partial_report` call already wrote this exact content (it included every
+    # model, having just finished the last one) — render again here only to print it to stdout.
     report = render_report(results)
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(report, encoding="utf-8")
     print(report)
     print(f"\n[report written to {args.out}]", file=sys.stderr)
 

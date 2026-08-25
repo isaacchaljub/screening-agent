@@ -20,6 +20,9 @@ dependencies = [
     "openai>=1.40",
     "anthropic>=0.34",
     "google-genai>=0.3",
+    # Local, in-process embeddings (llm/providers/local.py). Pulls torch, which is by far the
+    # heaviest dependency here — the trade is argued in README "Local embeddings".
+    "sentence-transformers>=3.0",
 ]
 
 [project.optional-dependencies]
@@ -30,6 +33,14 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# Non-Python files that are *source*, not documentation, and so must land in site-packages.
+# `packages.find` only collects importable packages, so without this a non-editable install
+# (i.e. the Docker image) silently ships without them: `api.py`'s `WEB_DIR.exists()` guard goes
+# false and the chat UI 404s, and `rag/index.py` finds no FAQ to embed. Neither shows up in
+# development, because `pip install -e .` resolves both straight out of the source tree.
+[tool.setuptools.package-data]
+screening_agent = ["web/*", "rag/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

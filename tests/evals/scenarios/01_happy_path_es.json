@@ -1,6 +1,6 @@
 {
   "name": "happy_path_es",
-  "description": "Full happy path, Spanish throughout, every field given cleanly one at a time.",
+  "description": "Full happy path, Spanish throughout, every field given cleanly one at a time. Start date is phrased the way a candidate actually types it, not as ISO.",
   "messages": [
     "Hola",
     "Me llamo Laura Fernández",
@@ -9,7 +9,7 @@
     "Tiempo completo",
     "Por la tarde",
     "3 años en Glovo y Rappi",
-    "Puedo empezar el 2026-09-15",
+    "Puedo empezar el 15 de septiembre",
     "Gracias"
   ],
   "expected_outcome": "qualified",
@@ -20,7 +20,10 @@
     "availability": "full_time",
     "preferred_schedule": "afternoon",
     "experience_years": 3.0,
-    "experience_platforms": ["Glovo", "Rappi"],
+    "experience_platforms": [
+      "Glovo",
+      "Rappi"
+    ],
     "start_date": "2026-09-15"
   }
 }

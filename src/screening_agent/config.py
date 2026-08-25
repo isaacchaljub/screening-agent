@@ -78,6 +78,10 @@ TONE = ToneConfig()
 
 # --- R7: free-tier models are dev-only ---
 
+# Note what is deliberately absent: "local" (llm/providers/local.py). R7 exists because free
+# tiers permit the vendor to train on submitted prompts — it is a data-egress rule, not a cost
+# rule. A model running in-process sends nothing anywhere, so it is the one embedding path that
+# is allowed outside `dev`, and adding it here would ban the option that actually solves R7.
 FREE_TIER_VENDORS: frozenset[str] = frozenset({"google", "groq"})
 
 

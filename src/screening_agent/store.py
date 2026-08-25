@@ -6,15 +6,20 @@ JSON export. This module has no opinion about flow or validity — it just persi
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import JSON, ForeignKey, create_engine
+from sqlalchemy import JSON, ForeignKey, Table, create_engine, inspect
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
+from sqlalchemy.schema import Column
 
 from screening_agent.models import CandidateProfile, Language, Stage, Terminal
+
+logger = logging.getLogger(__name__)
 
 DATA_DIR = Path("data")
 DB_PATH = DATA_DIR / "screening.db"
@@ -141,11 +146,69 @@ class ActiveConversation:
     nudge_count: int
 
 
+def _add_column_sql(table: Table, column: Column, engine: Engine) -> str:
+    """DDL to add one missing column, or a `RuntimeError` naming what a human has to do instead."""
+    type_sql = column.type.compile(engine.dialect)
+    if column.nullable:
+        return f"ALTER TABLE {table.name} ADD COLUMN {column.name} {type_sql}"
+    # A NOT NULL column can only be added to a table that already has rows if it comes with a
+    # default to backfill them. SQLAlchemy's `default=` is applied Python-side on insert, so it
+    # isn't in the DDL — but when it's a plain scalar we can honestly reuse it as the fill value.
+    default = getattr(column.default, "arg", None)
+    if column.default is not None and not callable(default):
+        literal = repr(default) if isinstance(default, str) else str(int(default))
+        return (
+            f"ALTER TABLE {table.name} ADD COLUMN {column.name} {type_sql} "
+            f"NOT NULL DEFAULT {literal}"
+        )
+    raise RuntimeError(
+        f"{table.name}.{column.name} is NOT NULL with no scalar default, so it cannot be "
+        f"backfilled onto the existing rows in this database automatically. Migrate it by hand, "
+        f"or delete the database if the data is disposable."
+    )
+
+
+def _reconcile_schema(engine: Engine) -> None:
+    """Add columns that the models declare but an existing database lacks.
+
+    `Base.metadata.create_all()` creates *missing tables* and nothing else — it will not touch a
+    table that already exists, however far its schema has drifted. That is a silent failure with a
+    long fuse: M7 added `last_candidate_activity` and `nudge_count` to `conversations`, every fresh
+    database got them, and every database created before M7 kept working right up until the next
+    insert, which then died with `OperationalError: table conversations has no column named
+    last_candidate_activity`. Found exactly that way — a pre-M7 `data/screening.db` turned the
+    first message of a containerised run into a 500.
+
+    **This is deliberately not a migration system.** It handles the one case it can handle
+    honestly — a column that was added — and raises a clear error for anything it cannot (renames,
+    type changes, drops, non-defaultable NOT NULL columns). It exists so a demo or pilot survives
+    schema drift; a real deployment gets Alembic, and `docs/deployment.md` says so.
+    """
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    for table in Base.metadata.sorted_tables:
+        if table.name not in existing_tables:
+            continue  # create_all() just built it, in full
+        present = {col["name"] for col in inspector.get_columns(table.name)}
+        for column in table.columns:
+            if column.name in present:
+                continue
+            statement = _add_column_sql(table, column, engine)
+            with engine.begin() as conn:
+                conn.exec_driver_sql(statement)
+            logger.warning(
+                "schema drift: added missing column %s.%s to the existing database",
+                table.name,
+                column.name,
+            )
+
+
 class Store:
     def __init__(self, db_path: Path = DB_PATH, exports_dir: Path | None = None) -> None:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self.engine = create_engine(f"sqlite:///{db_path}")
         Base.metadata.create_all(self.engine)
+        _reconcile_schema(self.engine)
         # Defaults alongside the DB file, not the hardcoded module constant — a Store pointed
         # at a custom db_path (tests, a debug script) must not write into the real data/exports/.
         self.exports_dir = exports_dir or (db_path.parent / "exports")

@@ -23,12 +23,16 @@
 Per R4, the client is built with `max_retries=0` — this module's own `TransportError` +
 `llm/retry.py` is the only retry layer.
 
-**Not live-verified.** Unlike `providers/anthropic.py` and the Groq half of
-`providers/chat_completions.py`, no call here has actually been run against `OPENAI_API_KEY` yet
-(§2's docs-verification step). Everything above is read out of the installed SDK's own method and
-type signatures rather than guessed from training-data recall, but "matches the SDK's declared
-shape" and "verified against a live response" are different claims — run a real call before
-trusting this path outside `dev`.
+**Live-verified up to the account's own billing limit, not past it.** M9 ran `llm/smoke.py --model
+openai:gpt-5.6-terra` against real `OPENAI_API_KEY`: the first attempt 400'd on `temperature`
+(fixed in `params.py`'s `_build_openai_responses` — see its docstring), and the corrected request
+was accepted and *sent* (past the 400) but then hit `openai.RateLimitError:
+insufficient_quota`/`credit_balance_exhausted` — the account behind this key has no credits. So
+the request-shape bug this docstring used to warn about is confirmed fixed, but no call through
+this module has actually returned a real `200` yet; `complete_text` hasn't been exercised live at
+all (the smoke script errors out of `complete_structured` first). Re-run `llm/smoke.py --model
+openai:gpt-5.6-terra` once the account has credits before trusting this path outside `dev`, or
+before adding it to `registry.ROLES`.
 """
 
 from __future__ import annotations
@@ -36,11 +40,19 @@ from __future__ import annotations
 from typing import Any
 
 import openai
+import pydantic
 from openai import OpenAI
 from pydantic import BaseModel
 
 from screening_agent import config
-from screening_agent.llm.base import EmbedResult, Message, SchemaError, StructuredResult, TextResult
+from screening_agent.llm.base import (
+    EmbedResult,
+    Message,
+    SchemaError,
+    StructuredResult,
+    TextResult,
+    TruncatedResponseError,
+)
 from screening_agent.llm.registry import ModelSpec
 from screening_agent.llm.retry import TransportError
 
@@ -62,6 +74,15 @@ def _input_payload(messages: list[Message]) -> list[dict[str, str]]:
     return [{"role": m.role, "content": m.content} for m in messages]
 
 
+def _hit_token_cap(response: Any) -> bool:
+    """The Responses API reports truncation as `status == "incomplete"` with an
+    `incomplete_details.reason` — not as a `finish_reason` the way Chat Completions does."""
+    if getattr(response, "status", None) != "incomplete":
+        return False
+    reason = getattr(getattr(response, "incomplete_details", None), "reason", None)
+    return reason == "max_output_tokens"
+
+
 def complete_text(
     spec: ModelSpec, *, messages: list[Message], params: dict[str, Any]
 ) -> TextResult:
@@ -74,10 +95,15 @@ def complete_text(
         )
     except _TRANSPORT_ERRORS as exc:
         raise TransportError(f"{spec.vendor} transport error: {exc}", original=exc) from exc
+    if _hit_token_cap(response) and not (response.output_text or "").strip():
+        raise TruncatedResponseError(
+            f"{spec.vendor} hit max_output_tokens ({call_params.get('max_output_tokens')}) "
+            "before producing any text — reasoning tokens count against the same cap"
+        )
     usage = response.usage
     return TextResult(
         text=response.output_text,
-        model=spec.model_id,
+        model=spec.full_name,
         input_tokens=getattr(usage, "input_tokens", None),
         output_tokens=getattr(usage, "output_tokens", None),
     )
@@ -98,13 +124,23 @@ def complete_structured(
         )
     except _TRANSPORT_ERRORS as exc:
         raise TransportError(f"{spec.vendor} transport error: {exc}", original=exc) from exc
+    except pydantic.ValidationError as exc:
+        # Same failure mode as Anthropic's `.parse()`: the SDK validates the JSON itself, so a
+        # response truncated mid-object arrives as a pydantic error rather than anything
+        # vendor-shaped. R5 wants that retried on the same model, not failed outright.
+        raise SchemaError(f"{spec.vendor} returned invalid {schema.__name__} JSON: {exc}") from exc
     parsed = response.output_parsed
     if parsed is None:
+        if _hit_token_cap(response):
+            raise TruncatedResponseError(
+                f"{spec.vendor} hit max_output_tokens ({call_params.get('max_output_tokens')}) "
+                f"before finishing {schema.__name__}"
+            )
         raise SchemaError(f"{spec.vendor} did not return a parsed {schema.__name__}")
     usage = response.usage
     return StructuredResult(
         data=parsed,
-        model=spec.model_id,
+        model=spec.full_name,
         input_tokens=getattr(usage, "input_tokens", None),
         output_tokens=getattr(usage, "output_tokens", None),
     )

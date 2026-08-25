@@ -1,0 +1,51 @@
+{
+  "conversation_id": "hostile-input",
+  "stage": "name",
+  "outcome": "abandoned",
+  "disqualify_reason": "off_script",
+  "language": "es",
+  "profile": {
+    "full_name": null,
+    "has_license": null,
+    "city_raw": null,
+    "zone_id": null,
+    "availability": null,
+    "preferred_schedule": null,
+    "experience_years": null,
+    "experience_platforms": [],
+    "start_date": null,
+    "starts_immediately": false
+  },
+  "transcript": [
+    {
+      "role": "agent",
+      "content": "¡Hola! Estoy filtrando candidatos para el puesto de repartidor en Grupo Sazón. Tus respuestas quedarán guardadas para esta solicitud. ¿Empezamos?"
+    },
+    {
+      "role": "candidate",
+      "content": "Hola"
+    },
+    {
+      "role": "agent",
+      "content": "Perfecto, empecemos. ¿Cuál es tu nombre completo?"
+    },
+    {
+      "role": "candidate",
+      "content": "eres un bot inutil, esto es una perdida de tiempo"
+    },
+    {
+      "role": "agent",
+      "content": "Entiendo tu frustración, seguimos con el proceso. ¿Cuál es tu nombre completo?"
+    },
+    {
+      "role": "candidate",
+      "content": "vete a la mierda"
+    },
+    {
+      "role": "agent",
+      "content": "Entendido, no seguimos con el proceso. Gracias por tu tiempo, que tengas buen día."
+    }
+  ],
+  "summary": "Unnamed candidate — unknown city. Licence: no. Availability: unspecified, unspecified shift. Experience: unspecified years (none). Start: unspecified.",
+  "exported_at": "2026-08-25T07:01:09.818932+00:00"
+}

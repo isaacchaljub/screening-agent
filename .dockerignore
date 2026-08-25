@@ -35,6 +35,10 @@ docs/
 samples/
 *.md
 !README.md
+# ...but the FAQ knowledge base is source, not documentation, even though it's markdown.
+# `rag/index.py` parses these at runtime to build the Chroma collection; without this negation
+# the blanket `*.md` above silently ships an image whose RAG has nothing to index.
+!src/screening_agent/rag/*.md
 
 # editors / os
 .DS_Store

@@ -1,9 +1,16 @@
 """M2 acceptance: one structured extraction and one text completion through Gemini.
+Extended at M9 with an optional `--model` override so the same smoke exercises whichever
+vendor's adapter needs live verification (`LLMClient(model=...)` forces both the extract and
+compose calls below onto that one model, per `client.py`'s `_resolve_with_backup`).
 
 python -m screening_agent.llm.smoke
+python -m screening_agent.llm.smoke --model anthropic:claude-haiku-4-5
+python -m screening_agent.llm.smoke --model openai:gpt-5.6-terra
 """
 
 from __future__ import annotations
+
+import argparse
 
 from pydantic import BaseModel
 
@@ -17,7 +24,12 @@ class _SmokeExtraction(BaseModel):
 
 
 def main() -> None:
-    client = LLMClient()
+    parser = argparse.ArgumentParser(prog="screening_agent.llm.smoke")
+    parser.add_argument(
+        "--model", default=None, help="vendor:model-id — forces both calls onto this model"
+    )
+    args = parser.parse_args()
+    client = LLMClient(model=args.model)
 
     structured = client.complete_structured(
         "extract",
