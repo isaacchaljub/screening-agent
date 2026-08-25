@@ -14,6 +14,7 @@ import argparse
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import chromadb
 
@@ -25,6 +26,12 @@ CHROMA_DIR = Path("data") / "chroma"
 COLLECTION_NAME = "faq"
 
 _HEADING_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
+
+# Collection handles, keyed by `str(persist_dir)`. `PersistentClient(...).get_collection(...)`
+# measured at ~60ms — cheap once, but `rag/retrieve.py::retrieve()` used to pay it on every single
+# candidate FAQ question. Same pattern as `providers/local.py::_models` /
+# `providers/chat_completions.py::_clients`: a plain module-level dict, loaded once per process.
+_collections: dict[str, Any] = {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +72,22 @@ def load_entries() -> list[FaqEntry]:
     ]
 
 
+def _persistent_client(persist_dir: Path) -> chromadb.ClientAPI:
+    return chromadb.PersistentClient(path=str(persist_dir))
+
+
+def get_collection(persist_dir: Path = CHROMA_DIR):
+    """The `faq` collection handle, cached per `persist_dir` for the life of the process.
+    `retrieve()` and `warmup()` (see `rag/retrieve.py`) both call this instead of building their
+    own client — that's the whole point of the cache."""
+    key = str(persist_dir)
+    collection = _collections.get(key)
+    if collection is None:
+        collection = _persistent_client(persist_dir).get_collection(COLLECTION_NAME)
+        _collections[key] = collection
+    return collection
+
+
 def rebuild(*, client: LLMClient | None = None, persist_dir: Path = CHROMA_DIR) -> int:
     """Re-embeds every FAQ entry and replaces the persisted collection wholesale — simpler and
     safer than diffing for a knowledge base this small (~40 chunks)."""
@@ -74,7 +97,7 @@ def rebuild(*, client: LLMClient | None = None, persist_dir: Path = CHROMA_DIR) 
     texts = [entry.text for entry in entries]
     embeddings = client.embed(texts, task_type="RETRIEVAL_DOCUMENT").vectors
 
-    chroma_client = chromadb.PersistentClient(path=str(persist_dir))
+    chroma_client = _persistent_client(persist_dir)
     try:
         chroma_client.delete_collection(COLLECTION_NAME)
     except Exception:  # noqa: BLE001 — chromadb's "no such collection" error isn't public API
@@ -89,6 +112,11 @@ def rebuild(*, client: LLMClient | None = None, persist_dir: Path = CHROMA_DIR) 
             for entry in entries
         ],
     )
+    # Overwrite, don't just drop, the cached handle. `_collections` may still hold the handle from
+    # *before* `delete_collection` above — that handle now points at data chromadb just deleted.
+    # A bare `.pop()` would only fix the next `get_collection()` call by luck of re-fetching;
+    # writing the fresh collection in directly is what actually retires the stale one.
+    _collections[str(persist_dir)] = collection
     return len(entries)
 
 

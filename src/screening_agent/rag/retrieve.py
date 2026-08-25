@@ -11,10 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-import chromadb
-
 from screening_agent.llm.client import LLMClient
-from screening_agent.rag.index import CHROMA_DIR, COLLECTION_NAME
+from screening_agent.rag.index import CHROMA_DIR, get_collection
 
 DEFAULT_TOP_K = 3
 # Recalibrated for the local `intfloat/multilingual-e5-small` model (see
@@ -49,9 +47,19 @@ class FaqHit:
     relevance: float  # cosine similarity, roughly [-1, 1]; higher is closer
 
 
-def _collection(persist_dir: Path):
-    chroma_client = chromadb.PersistentClient(path=str(persist_dir))
-    return chroma_client.get_collection(COLLECTION_NAME)
+def warmup(client: LLMClient, *, persist_dir: Path = CHROMA_DIR) -> None:
+    """Pays, once and up front, the two costs `retrieve()` would otherwise pay on a live
+    candidate's *first* FAQ question: opens (and caches, via `rag.index.get_collection`) the
+    Chroma collection handle, and forces the local embedding model to load — `providers/local.py`
+    loads `sentence-transformers` lazily, measured at ~6s the first call, ~7ms after. Call this
+    once, at process startup (`api.py`'s `lifespan` does); nothing here is cached per-query, so
+    calling it more than once just re-pays the (by-then-cheap) warm cost.
+
+    Raises if the collection is missing or the model fails to load — this function does not
+    decide whether that's fatal, the caller does. `api.py` treats it as non-fatal: FAQ retrieval
+    is a degradable feature, not a privacy control like R7's startup check."""
+    get_collection(persist_dir)
+    client.embed(["warmup"], task_type="RETRIEVAL_QUERY")
 
 
 def retrieve(
@@ -70,7 +78,7 @@ def retrieve(
     if not query.strip():
         return []
 
-    collection = _collection(persist_dir)
+    collection = get_collection(persist_dir)
     query_vector = client.embed([query], task_type="RETRIEVAL_QUERY").vectors[0]
     where = {"language": language} if language is not None else None
     result = collection.query(query_embeddings=[query_vector], n_results=top_k, where=where)

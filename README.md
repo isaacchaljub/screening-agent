@@ -207,6 +207,16 @@ one was actually asked. Measured: ~17 ms per query after load, versus a network 
 is no rate limit, no quota, and no dependency on somebody else's uptime. Retry still wraps it; what
 disappears is the class of failure that retrying was for.
 
+**The one-time load cost is paid at startup, not on a candidate.** `~17 ms per query after load`
+is doing real work in that sentence: `sentence-transformers` loads the model lazily on first use,
+and that first use measured at **~6 s** — indistinguishable from a hang to whoever's chat message
+triggered it. `api.py`'s `lifespan` now forces that load (and opens the Chroma collection handle,
+another repeated cost `rag/retrieve.py` used to pay per call) before uvicorn serves its first
+request, so total startup is ~8–9 s and every candidate's first FAQ question is as fast as their
+second. `GET /api/health` reports `faq_index: "ready" | "unavailable"` rather than staying silent
+about it — a failed warm-up degrades the FAQ feature (the screening flow doesn't need it), it
+doesn't fail the container; see `docs/serve.md` §7.
+
 **The model was chosen by measurement.** Calibrated against this exact 40-entry FAQ with 17
 on-topic queries (mixed ES/EN) and 10 off-topic ones:
 
@@ -390,6 +400,12 @@ notice and the current suite wouldn't.
 **Single-channel.** The browser UI is the demo surface, but a candidate who ignores a phone call
 answers WhatsApp. `api.py` is already the right seam for a channel adapter.
 
+**database** I'd add MongoDB to keep rack of conversations by user, making sure the whole thread
+is saved and that information can be persisted through app restarts more effectively.
+
+**LLM tracing** Enabling Langsmith for the app, to be able to follow the agent's parameters, input,
+thinking, and output at every turn and call. This would make debugging a simple walkthrough over the
+trace and enable concurrent work on the code.
 ---
 
 ## Repository notes

@@ -20,10 +20,15 @@ Then open **http://127.0.0.1:8000**.
 **Do not use `--reload` when presenting.** It restarts the server on any file change, and a restart
 drops every in-flight conversation (they live in memory — see §6). `--reload` is for development.
 
-Check it came up:
+Startup now takes **~8–9 s**, not instant — `api.py`'s `lifespan` loads the local FAQ embedding
+model and opens the Chroma index before uvicorn serves anything, so the first candidate to ask a
+question doesn't pay that cost mid-conversation. Check it came up, and that the warm-up actually
+succeeded:
 
 ```bash
-curl -s localhost:8000/api/health      # {"status":"ok"}
+curl -s localhost:8000/api/health
+# {"status":"ok","faq_index":"ready"}       ← normal
+# {"status":"ok","faq_index":"unavailable"} ← server is up, FAQ answers won't work (§7)
 ```
 
 ### Prerequisites, once
@@ -222,12 +227,13 @@ deploys."* Don't pretend it scales out today. `docs/deployment.md` has the full 
 | `503` with "temporarily unavailable" | Vendor outage, past retries *and* fallback | Wait, or demo from `samples/` |
 | `500` on the first message | Stale database schema | `rm -f data/screening.db` and restart |
 | `409 conversation already reached a terminal outcome` | You're typing into a finished conversation | Reload the tab |
-| FAQ questions get no answer | Index missing or stale | `python -m screening_agent.rag.index --rebuild` |
-| First FAQ question is slow (~7 s) | Embedding model loading, once per process | Ask one throwaway FAQ question before presenting to warm it |
+| FAQ questions get no answer, `/api/health` says `"faq_index":"unavailable"` | Index missing/stale, or the warm-up failed at startup (check the server log for the warning) | `python -m screening_agent.rag.index --rebuild`, then restart |
+| Server takes ~8–9 s to report healthy after starting | Expected — the local embedding model is loading (see §1). Not a hang. | Just wait; no action needed |
 | `RuntimeError: ANTHROPIC_API_KEY is not set` | `.env` missing or not loaded | Check `.env` exists in the repo root |
 
-**Warm it up before you present.** Reload the tab, send `Hola`, ask `¿cuánto pagan?`, then reload
-again. That pays the model-load cost off screen so the live run is uniformly fast.
+Nothing to warm up by hand anymore: `api.py`'s `lifespan` loads the embedding model and opens the
+Chroma index before the server reports healthy (§1), so the first FAQ question in a live demo is
+already as fast as every one after it.
 
 **Stopping the server:**
 

@@ -73,7 +73,15 @@ EXPOSE 8000
 
 # Matches api.py's own liveness endpoint. Uses urllib rather than curl so the runtime image
 # doesn't need to carry curl just to answer a health check.
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+#
+# --start-period=60s (was 10s): api.py's `lifespan` now warms the local embedding model and opens
+# the Chroma index before uvicorn serves its first request (~8s measured, model already baked
+# into the image so no download) — a 10s start period would flag a healthy container as unhealthy
+# during that window. The healthcheck body itself is unchanged: /api/health always returns 200
+# once the server is up, with a `faq_index` field reporting whether that warm-up actually
+# succeeded (see api.py's lifespan docstring) — a failed warm-up degrades the FAQ feature, it does
+# not fail the container.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
     CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2).status == 200 else 1)"
 
 # One worker on purpose. `api.py` keeps in-flight `Conversation` objects in a module-level dict
