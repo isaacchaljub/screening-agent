@@ -39,7 +39,7 @@ class ConversationRow(Base):
     outcome: Mapped[str | None]
     disqualify_reason: Mapped[str | None]
     language: Mapped[str | None]
-    # Re-engagement (M7). Deliberately separate from `updated_at`, which also moves on a nudge
+    # Re-engagement. Deliberately separate from `updated_at`, which also moves on a nudge
     # send — the ladder needs to measure time since the *candidate* last did something, not since
     # the conversation was last touched at all (a nudge touches it too, but doesn't cancel itself).
     last_candidate_activity: Mapped[datetime | None]
@@ -171,18 +171,11 @@ def _add_column_sql(table: Table, column: Column, engine: Engine) -> str:
 def _reconcile_schema(engine: Engine) -> None:
     """Add columns that the models declare but an existing database lacks.
 
-    `Base.metadata.create_all()` creates *missing tables* and nothing else — it will not touch a
-    table that already exists, however far its schema has drifted. That is a silent failure with a
-    long fuse: M7 added `last_candidate_activity` and `nudge_count` to `conversations`, every fresh
-    database got them, and every database created before M7 kept working right up until the next
-    insert, which then died with `OperationalError: table conversations has no column named
-    last_candidate_activity`. Found exactly that way — a pre-M7 `data/screening.db` turned the
-    first message of a containerised run into a 500.
-
-    **This is deliberately not a migration system.** It handles the one case it can handle
-    honestly — a column that was added — and raises a clear error for anything it cannot (renames,
-    type changes, drops, non-defaultable NOT NULL columns). It exists so a demo or pilot survives
-    schema drift; a real deployment gets Alembic, and `docs/deployment.md` says so.
+    `Base.metadata.create_all()` creates *missing tables* only — it never alters one that already
+    exists, however far its schema has drifted, and fails on the next insert once it hasn't.
+    Deliberately not a migration system: handles the one case it can handle honestly (a column
+    that was added) and raises a clear error for anything else. See README "What I'd do
+    differently" for the scope and `docs/deployment.md` for the real answer (Alembic).
     """
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
@@ -301,7 +294,7 @@ class Store:
         nudge_index: int,
         outcome: Terminal | None = None,
     ) -> None:
-        """A re-engagement nudge (M7) — an agent-only turn. Does *not* touch
+        """A re-engagement nudge — an agent-only turn. Does *not* touch
         `last_candidate_activity`; a nudge is the opposite of candidate activity, and if it did
         reset that clock the ladder would push itself back every time it fired."""
         now = datetime.now(UTC)
@@ -327,7 +320,7 @@ class Store:
             session.commit()
 
     def list_active(self) -> list[ActiveConversation]:
-        """Non-terminal conversations, for the re-engagement scheduler (M7) to scan."""
+        """Non-terminal conversations, for the re-engagement scheduler to scan."""
         with Session(self.engine) as session:
             rows = session.query(ConversationRow).filter(ConversationRow.outcome.is_(None)).all()
             return [

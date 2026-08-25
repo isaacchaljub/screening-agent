@@ -1,7 +1,6 @@
 """Real OpenAI provider — `client.responses.create`/`.parse`, the Responses API GPT-5.6
 `luna`/`terra` require. A materially different calling convention from Chat Completions (Groq,
-`providers/chat_completions.py`), confirmed by introspecting the installed `openai` SDK's own
-`resources/responses/responses.py` and `types/responses/` on 2026-08-24:
+`providers/chat_completions.py`):
 
 - `client.responses.create(...)` / `client.responses.parse(...)`, not `.chat.completions.*`.
 - System prompt is a top-level `instructions` kwarg — like Anthropic's `system`
@@ -10,12 +9,10 @@
   minus the system entry (which moves to `instructions` instead).
 - Output-token cap is `max_output_tokens`, not Chat Completions' `max_completion_tokens`.
 - Structured output: `.parse(text_format=<pydantic model>)` → `response.output_parsed`, the
-  validated instance directly (`openai.types.responses.parsed_response.ParsedResponse
-  .output_parsed`) — no manual schema-building or JSON parsing needed here, unlike Groq's
-  best-effort mode (`providers/chat_completions.py`).
-- Reasoning is a nested `reasoning={"effort": "low"}` dict (`openai.types.shared.Reasoning`), not
-  Chat Completions' flat `reasoning_effort` string. The SDK's own docstring scopes `Reasoning` to
-  "gpt-5 and o-series models only" — the GPT-5.6 family this module targets qualifies.
+  validated instance directly — no manual schema-building or JSON parsing needed here, unlike
+  Groq's best-effort mode (`providers/chat_completions.py`).
+- Reasoning is a nested `reasoning={"effort": "low"}` dict, not Chat Completions' flat
+  `reasoning_effort` string.
 - Errors: same `openai` SDK client as `chat_completions.py`, so the same exception classes apply —
   `openai.RateLimitError`/`InternalServerError`/`APIConnectionError` map to `TransportError` (R5).
 - No embeddings endpoint via Responses API — embeddings stay on Google in dev (§5).
@@ -23,16 +20,8 @@
 Per R4, the client is built with `max_retries=0` — this module's own `TransportError` +
 `llm/retry.py` is the only retry layer.
 
-**Live-verified up to the account's own billing limit, not past it.** M9 ran `llm/smoke.py --model
-openai:gpt-5.6-terra` against real `OPENAI_API_KEY`: the first attempt 400'd on `temperature`
-(fixed in `params.py`'s `_build_openai_responses` — see its docstring), and the corrected request
-was accepted and *sent* (past the 400) but then hit `openai.RateLimitError:
-insufficient_quota`/`credit_balance_exhausted` — the account behind this key has no credits. So
-the request-shape bug this docstring used to warn about is confirmed fixed, but no call through
-this module has actually returned a real `200` yet; `complete_text` hasn't been exercised live at
-all (the smoke script errors out of `complete_structured` first). Re-run `llm/smoke.py --model
-openai:gpt-5.6-terra` once the account has credits before trusting this path outside `dev`, or
-before adding it to `registry.ROLES`.
+**Not in `registry.ROLES`.** The account behind `OPENAI_API_KEY` has no billing credits, so no
+call through this module has completed end to end — see README "Model choice" for the detail.
 """
 
 from __future__ import annotations

@@ -203,7 +203,7 @@ def test_experience_years_none_spanish():
 
 
 def test_experience_years_no_tengo_experiencia():
-    # Regression (M8 eval sweep, live-verified): the most natural way to say "I have no
+    # Regression: the most natural way to say "I have no
     # experience" in Spanish was missing from the recognized none-phrases.
     assert validate_experience_years("no tengo experiencia").value == 0.0
 

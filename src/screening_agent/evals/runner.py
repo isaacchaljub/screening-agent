@@ -1,20 +1,13 @@
 """Plays a scripted candidate against a real `Conversation` (real model, real `extract`/`compose`
-calls) and scores the result (M8).
+calls) and scores the result.
 
 Scenarios are pre-scripted message *lists*, not a two-way simulation against a second model
-playing the candidate — deliberately: `stages.next_step()` decides flow from validated
-`CandidateProfile` fields alone (R1), never from the exact wording of a reply, so a fixed message
-order matching §4.1's field order is robust to however the model under test happens to phrase its
-questions. That's what makes scoring "did this model extract correctly" meaningful independent of
-"did it also write a good question" — the two model calls (R2) are being evaluated somewhat
-separately, which is the point.
-
-M9 adds latency and cost: `_instrument` wraps `LLMClient.complete_text`/`complete_structured` at
-the *instance* level (no `__slots__` on `LLMClient`, so this is a plain attribute shadow) to time
-every call and read the token counts already sitting on `TextResult`/`StructuredResult` — no
-changes to `engine.py`/`extract.py`/`compose.py`, so the eval-only concern stays out of the
-production call path. `pricing.py` turns the summed tokens into a $ figure per model that has a
-known price.
+playing the candidate — see `_internal/STUDY_GUIDE.md` "Why scripted messages and not an
+agent-vs-agent simulation" for why. `_instrument` wraps `LLMClient.complete_text`/
+`complete_structured` at the *instance* level (no `__slots__` on `LLMClient`, so this is a plain
+attribute shadow) to measure latency and token usage without touching
+`engine.py`/`extract.py`/`compose.py`; `pricing.py` turns the summed tokens into a $ figure per
+model that has a known price.
 """
 
 from __future__ import annotations
@@ -37,9 +30,9 @@ from screening_agent.store import Store
 SCENARIOS_DIR = Path("tests") / "evals" / "scenarios"
 
 # `--model roles` runs the *real* `registry.ROLES` table (Haiku extracts, Sonnet composes) instead
-# of forcing one model onto both jobs. M9 measured only the forced modes and flagged the gap: a
-# forced figure is not production's cost, because production never routes both calls to one model.
-# This is the mode whose cost number the README can honestly call "measured".
+# of forcing one model onto both jobs. A forced figure is not production's cost, because
+# production never routes both calls to one model. This is the mode whose cost number the README
+# can honestly call "measured".
 ROLES_MODE = "roles"
 DEFAULT_TODAY = date(2026, 8, 24)
 _NOT_NULL = "<not_null>"

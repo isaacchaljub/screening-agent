@@ -1,4 +1,4 @@
-"""FastAPI app (M4): POST /api/chat, GET /api/conversations/{id}, the static web chat UI, health.
+"""FastAPI app: POST /api/chat, GET /api/conversations/{id}, the static web chat UI, health.
 
     uvicorn screening_agent.api:app --reload
 
@@ -7,7 +7,7 @@ Conversations live in an in-memory, module-level dict for this single-process de
 to SQLite on its own, so it can't be reconstructed from the DB alone on a cold request. A finished
 conversation's structured data and transcript *are* durable, in `data/screening.db` and its JSON
 export; only an in-flight one is lost on restart. Scaling this past one process — sticky sessions,
-or moving conversation state into Redis/the DB — is a `docs/deployment.md` design question (M10).
+or moving conversation state into Redis/the DB — is a `docs/deployment.md` design question.
 
 `lifespan` (below) warms the local FAQ embedding model at startup instead of on the first
 candidate question — see its docstring, and `rag/retrieve.py::warmup`, for why.
@@ -55,17 +55,14 @@ def _get_client() -> LLMClient:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Warms the local FAQ embedding model and opens the Chroma collection handle before the
-    server starts accepting requests, so the *first* candidate to ask an FAQ question mid-turn
-    isn't the one who pays the ~6s model-load cost (`rag/retrieve.py::warmup`,
-    `llm/providers/local.py`). uvicorn does not serve requests until this coroutine reaches
-    `yield`, so that cost lands here, once, at boot — not on a live conversation.
+    server starts accepting requests — see README "Embeddings run locally" for why. uvicorn does
+    not serve requests until this coroutine reaches `yield`.
 
-    `_get_client()` is deliberately outside the try/except below: constructing an `LLMClient`
-    runs R7's free-tier check (`config.assert_model_allowed`), and that must keep failing startup
-    loudly — it's a privacy rule, not a nice-to-have. Only the FAQ warm-up itself is allowed to
-    fail quietly: FAQ retrieval is a degradable feature (the screening flow works without it),
-    so a broken or missing index shouldn't take the whole server down with it. `/api/health`
-    reports the outcome so a degraded FAQ path is loud rather than silently broken.
+    `_get_client()` is deliberately outside the try/except below: constructing an `LLMClient` runs
+    R7's free-tier check, which must keep failing startup loudly — a privacy rule, not a
+    nice-to-have. Only the FAQ warm-up itself is allowed to fail quietly, since FAQ retrieval is a
+    degradable feature; `/api/health` reports the outcome so a degraded path is loud rather than
+    silently broken.
     """
     global _faq_ready
     client = _get_client()

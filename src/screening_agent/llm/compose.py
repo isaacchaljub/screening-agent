@@ -18,7 +18,7 @@ from screening_agent.stages import AskStage, Confirm, Redirect, Step, Terminate
 
 @dataclass(frozen=True, slots=True)
 class FaqContext:
-    """One retrieved FAQ hit to weave into the reply (M6) — process-design.md §3: "the question
+    """One retrieved FAQ hit to weave into the reply — process-design.md §3: "the question
     is answered from the FAQ in one sentence, then the outstanding stage question is re-asked in
     the same message. The stage does not advance." The re-ask half of that is free: `agent_step`
     is still whatever `next_step()`/the pending stage already was, since a question-only turn
@@ -182,7 +182,7 @@ def compose(
     return result.text.strip()
 
 
-# --- re-engagement nudges (M7) — a separate, smaller prompt: there's no `Step`, no validation
+# --- re-engagement nudges — a separate, smaller prompt: there's no `Step`, no validation
 # reason, no prior turn to acknowledge, since the candidate hasn't replied to anything yet. ------
 
 _NUDGE_INSTRUCTIONS: dict[int, str] = {
@@ -222,11 +222,9 @@ def compose_nudge(
         'No greeting like "hi again" and no sign-off.',
         "Never invent pay or policy details beyond what's given below.",
     ]
-    # A nudge is still the same brand speaking, so it takes the same tone constants the reply path
-    # takes — this prompt used to read only `max_words`, and the drift was visible live: the 3-day
-    # nudge came back in Rioplatense voseo ("¿Seguís interesado? ... si no respondés, podés volver
-    # a aplicar"), which is neither of this client's two markets. Sharing `config.TONE` between the
-    # two prompts is the whole point of the constants living in config rather than in prompt text.
+    # Shares `config.TONE` with the reply path rather than hardcoding tone rules separately —
+    # needed to avoid register drift (an earlier version that didn't share it drifted into
+    # Rioplatense voseo, wrong for both markets this client serves).
     if tone.one_question_per_message:
         lines.append("At most one question.")
     if tone.no_bullet_lists:

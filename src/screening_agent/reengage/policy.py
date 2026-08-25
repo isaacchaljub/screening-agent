@@ -1,4 +1,4 @@
-"""The re-engagement ladder (M7) — pure, no I/O, no clock reads, no sleeping. Every input
+"""The re-engagement ladder — pure, no I/O, no clock reads, no sleeping. Every input
 (`now`, `last_candidate_activity`, `nudge_count`, `zone`) is injected, the same discipline as
 `stages.next_step()`: this module decides *whether and which* nudge fires, `reengage/scheduler.py`
 is the only thing that actually touches a clock or the store.

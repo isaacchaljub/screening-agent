@@ -15,9 +15,9 @@ def _columns(db_path, table: str) -> list[str]:
         return [row[1] for row in conn.execute(f"PRAGMA table_info({table})")]
 
 
-def _make_pre_m7_database(db_path) -> None:
-    """A `conversations` table as it existed before M7 added the re-engagement columns — i.e. what
-    any database created earlier still looks like on disk today."""
+def _make_database_missing_reengagement_columns(db_path) -> None:
+    """A `conversations` table as it existed before the re-engagement columns were added — i.e.
+    what any database created earlier still looks like on disk today."""
     with sqlite3.connect(db_path) as conn:
         conn.execute(
             "CREATE TABLE conversations ("
@@ -34,11 +34,12 @@ def _make_pre_m7_database(db_path) -> None:
 
 def test_existing_database_missing_a_later_column_is_reconciled(tmp_path):
     # Regression: `Base.metadata.create_all()` creates missing *tables* and never alters an
-    # existing one, so a database created before M7 kept its old schema silently and then failed
-    # on the next insert with "table conversations has no column named last_candidate_activity".
-    # Live-reproduced: it turned the first message of a containerised run into a 500.
+    # existing one, so a database predating a new column kept its old schema silently and then
+    # failed on the next insert with "table conversations has no column named
+    # last_candidate_activity". Live-reproduced: it turned the first message of a containerised
+    # run into a 500.
     db_path = tmp_path / "drifted.db"
-    _make_pre_m7_database(db_path)
+    _make_database_missing_reengagement_columns(db_path)
     assert "last_candidate_activity" not in _columns(db_path, "conversations")
 
     Store(db_path=db_path)
@@ -49,7 +50,7 @@ def test_existing_database_missing_a_later_column_is_reconciled(tmp_path):
 
 def test_reconciled_database_still_accepts_writes_and_keeps_its_old_rows(tmp_path):
     db_path = tmp_path / "drifted.db"
-    _make_pre_m7_database(db_path)
+    _make_database_missing_reengagement_columns(db_path)
     store = Store(db_path=db_path)
 
     store.create_conversation("new-1")

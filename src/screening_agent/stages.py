@@ -2,8 +2,8 @@
 `validators.py` are the only two modules that decide what happens next; the model reads and
 writes text, never flow.
 
-`attempts` is a small `dict[str, int]` of orchestration state kept by the caller (`engine.py`,
-built in M3) across turns. Most keys are failed-attempt counters, one per `CandidateProfile`
+`attempts` is a small `dict[str, int]` of orchestration state kept by the caller (`engine.py`)
+across turns. Most keys are failed-attempt counters, one per `CandidateProfile`
 field name. Two keys are booleans encoded as 0/1 rather than counts:
 
 - `"has_license:needs_confirmation"` — set once a hedge on the licence question is detected
@@ -56,7 +56,7 @@ class Confirm:
 
 @dataclass(frozen=True, slots=True)
 class Redirect:
-    """One neutral redirect after off-script/inappropriate input (guardrails.py, M5). Carries the
+    """One neutral redirect after off-script/inappropriate input (guardrails.py). Carries the
     stage whose question is still outstanding, so compose.py can re-ask it naturally instead of
     just scolding the candidate."""
 
@@ -104,12 +104,11 @@ def next_step(profile: CandidateProfile, attempts: dict[str, int]) -> Step:
         if is_field_empty(profile, field):
             return AskStage(stage)
 
-    # Rule 5 — everything is filled: qualify in this same step. This used to show WRAP_UP as
-    # its own `AskStage`, with qualification only on the *next* `next_step()` call — but that
-    # left the candidate needing to send one more message after already being told a recruiter
-    # would follow up, which most candidates (reasonably) never do, so the conversation just
-    # sat un-qualified. process-design.md's stage table treats "confirms what was captured,
-    # states next steps" and "-> QUALIFIED" as one step, not two round-trips apart.
+    # Rule 5 — everything is filled: qualify in this same step, not on a later call. A candidate
+    # already told a recruiter will follow up has no reason to send another message, so waiting
+    # for one more turn to qualify would strand the conversation un-qualified. process-design.md's
+    # stage table treats "confirms what was captured, states next steps" and "-> QUALIFIED" as one
+    # step, not two round-trips apart.
     return Terminate(Terminal.QUALIFIED)
 
 

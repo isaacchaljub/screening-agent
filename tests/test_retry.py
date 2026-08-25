@@ -68,10 +68,9 @@ def test_honors_google_style_retry_delay_hint():
 
 
 def test_honors_groq_style_retry_delay_hint():
-    # Regression (M8): Groq's 429 body reads "Please try again in 1.2075s." — a different
-    # phrasing from Google's "retryDelay"/"retry in N seconds", live-verified to fall back to
-    # blind exponential backoff (and exhaust all 3 attempts on an 8000 TPM budget) before this
-    # pattern was added.
+    # Regression: Groq's 429 body reads "Please try again in 1.2075s." — a different
+    # phrasing from Google's "retryDelay"/"retry in N seconds". Without this pattern it falls
+    # back to blind exponential backoff, exhausting all 3 attempts on an 8000 TPM budget.
     waits = []
 
     class FakeGroqError(Exception):

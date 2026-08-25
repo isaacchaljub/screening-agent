@@ -1,6 +1,6 @@
 """Primary → backup fallback (§5, R5). Only a `TransportError` that survives the retry layer
 falls back — a schema/400 failure propagates unchanged, so it can be retried against the *same*
-model instead (`llm/extract.py`, M3). Backups are deliberately a different vendor at a matching
+model instead (`llm/extract.py`). Backups are deliberately a different vendor at a matching
 tier, so a provider outage degrades the answer instead of ending the demo.
 """
 

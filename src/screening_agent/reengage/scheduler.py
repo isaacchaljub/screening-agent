@@ -1,16 +1,9 @@
-"""APScheduler wiring for the re-engagement ladder (M7). Scans non-terminal conversations on a
+"""APScheduler wiring for the re-engagement ladder. Scans non-terminal conversations on a
 timer, asks `policy.next_nudge()` (pure) what to do, and only when told to, composes and persists
 a nudge. All the actual timing logic lives in `policy.py` — this module's only job is "read the
 store, call the policy, write the result back."
 
-**Celery path, documented but not built** (this project uses APScheduler per
-`_internal/PLAN_FOR_SONNET.md` §6, M7): at real scale, replace `BackgroundScheduler` with a Celery
-beat entry (`reengage.sweep`, every `SWEEP_INTERVAL_SECONDS`) whose task body calls `run_once()`.
-Nothing about `run_once()`, `Store.list_active()`, or `Store.record_nudge()` would need to change —
-only what triggers the sweep and which process runs it. APScheduler's in-process timer is a fine
-fit for one dev/demo server; it stops being enough the moment there's more than one worker process
-(each would run its own duplicate sweep) or the process restarts on a schedule, which is exactly
-where Celery beat (one scheduled dispatch, workers pull the task) earns its keep.
+See README "What I'd do differently" for the Celery migration path at real scale.
 """
 
 from __future__ import annotations
@@ -92,8 +85,8 @@ def run_once(*, store: Store, client: LLMClient, now: datetime | None = None) ->
 
 def start(*, store: Store | None = None, client: LLMClient | None = None) -> BackgroundScheduler:
     """Wires `run_once()` into an in-process timer for the dev/demo server. Not called from
-    `api.py` automatically (M4 didn't anticipate it) — a caller opts in explicitly, e.g. a
-    startup hook, so the demo script and tests aren't forced to carry a background thread."""
+    `api.py` automatically — a caller opts in explicitly, e.g. a startup hook, so the demo script
+    and tests aren't forced to carry a background thread."""
     store = store or Store()
     client = client or LLMClient()
     scheduler = BackgroundScheduler()

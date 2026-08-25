@@ -1,19 +1,14 @@
-"""Per-model $/1M-token pricing for the M9 bake-off's cost-per-conversation column.
+"""Per-model $/1M-token pricing for the eval sweep's cost-per-conversation column.
 
-Sourced via WebSearch on 2026-08-24 (current published rates, not training-data recall — vendor
-pricing changes too often to trust from memory):
+Current published rates as of 2026-08-24 — vendor pricing changes too often to trust from memory:
 
-- `anthropic:claude-haiku-4-5` — $1.00 input / $5.00 output per 1M tokens
-  (platform.claude.com/docs/en/about-claude/pricing).
+- `anthropic:claude-haiku-4-5` — $1.00 input / $5.00 output per 1M tokens.
 - `anthropic:claude-sonnet-5` — **introductory** $2.00 / $10.00 per 1M tokens through 2026-08-31,
-  rising to $3.00 / $15.00 after. Today (2026-08-24) is inside the introductory window, so that's
-  the rate used here — a cost figure measured next week would differ by 50% through no code
-  change. Revisit this constant after 2026-08-31.
-- `groq:openai/gpt-oss-120b` — $0.15 input / $0.60 output per 1M tokens
-  (console.groq.com pricing; confirmed by multiple aggregators — Requesty, OpenRouter, Artificial
-  Analysis — agreeing on the same figure).
+  rising to $3.00 / $15.00 after. A cost figure measured after that date would differ by 50%
+  through no code change. Revisit this constant then.
+- `groq:openai/gpt-oss-120b` — $0.15 input / $0.60 output per 1M tokens.
 
-Not a general-purpose pricing module — just what M9's eval sweep needs prices for. A model not in
+Not a general-purpose pricing module — just what the eval sweep needs prices for. A model not in
 this table has no cost computed (`cost_usd=None` in the report) rather than a guessed number.
 """
 

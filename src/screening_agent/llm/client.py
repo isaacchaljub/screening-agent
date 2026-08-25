@@ -37,7 +37,7 @@ class LLMClient:
     def __init__(self, *, app_env: str | None = None, model: str | None = None) -> None:
         """`model` ("vendor:model-id", e.g. "groq:openai/gpt-oss-120b") forces extract/compose
         onto one model, bypassing the normal per-role primary/backup/dev-override table entirely
-        — an eval sweep (M8) is testing one model end to end, not exercising the fallback ladder,
+        — an eval sweep is testing one model end to end, not exercising the fallback ladder,
         so there's no backup for a forced model either (a transport failure just fails the sweep
         run, which is the right signal for "rerun it," not a silent vendor swap mid-sweep).
         `embed` is deliberately never forced — see `_resolve_with_backup`."""
@@ -61,11 +61,11 @@ class LLMClient:
     def _resolve_with_backup(
         self, role: str
     ) -> tuple[registry.ModelSpec, registry.ModelSpec | None]:
-        # A forced `model` (eval sweeps, M8) overrides extract/compose — the two roles a sweep is
+        # A forced `model` (eval sweeps) overrides extract/compose — the two roles a sweep is
         # actually testing — but never embed: §5 dedicates embeddings to Google regardless of
         # which model is under test (Groq, an eval-sweep vendor, has no embedding endpoint at
-        # all — live-verified this breaks the FAQ-interruption scenario otherwise, since RAG
-        # retrieval embeds through this same client).
+        # all — forcing it would break the FAQ-interruption scenario, since RAG retrieval embeds
+        # through this same client).
         if self._forced_spec is not None and role != "embed":
             return self._forced_spec, None
         entry = registry.ROLES[role]

@@ -9,8 +9,8 @@ from screening_agent.llm.registry import ModelSpec
 GOOGLE_SPEC = ModelSpec.parse("google:gemini-3.5-flash-lite")
 GROQ_SPEC = ModelSpec.parse("groq:openai/gpt-oss-120b")
 # Haiku 4.5 predates adaptive thinking; Sonnet 5 has it. The two specs exist separately here
-# because that difference is *within* the vendor and changes the request shape (live-verified
-# 400s both ways) — the exact thing `supports_adaptive_thinking` was added to carry.
+# because that difference is *within* the vendor and changes the request shape (each 400s on the
+# other's reasoning params) — the exact thing `supports_adaptive_thinking` was added to carry.
 ANTHROPIC_SPEC = ModelSpec.parse("anthropic:claude-haiku-4-5")
 ANTHROPIC_THINKING_SPEC = ModelSpec.parse("anthropic:claude-sonnet-5")
 OPENAI_SPEC = ModelSpec.parse("openai:gpt-5.6-luna")
@@ -57,8 +57,8 @@ def test_build_params_returns_a_fresh_dict_each_call():
 
 
 def test_google_embed_params_omit_generation_only_fields():
-    # Regression: EmbedContentConfig rejects max_output_tokens/temperature outright (live-verified
-    # ValidationError) — building embed params the same way as generation params breaks embed().
+    # Regression: EmbedContentConfig rejects max_output_tokens/temperature outright — building
+    # embed params the same way as generation params breaks embed().
     params = build_params(GOOGLE_SPEC, NeutralParams(for_embedding=True))
     assert "max_output_tokens" not in params
     assert "temperature" not in params
@@ -102,7 +102,7 @@ def test_anthropic_output_token_cap_and_system_prompt():
     params = build_params(ANTHROPIC_SPEC, NeutralParams(system="be terse", max_output_tokens=200))
     assert params["max_tokens"] == 200  # Anthropic's name, not Google's or OpenAI's
     assert params["system"] == "be terse"
-    assert "temperature" not in params  # removed entirely on current models (live-verified)
+    assert "temperature" not in params  # removed entirely on current models
 
 
 def test_anthropic_structured_output_mechanism():
@@ -111,9 +111,9 @@ def test_anthropic_structured_output_mechanism():
 
 
 def test_anthropic_pre_4_6_model_never_gets_thinking_or_effort():
-    # Live-verified 2026-08-25: claude-haiku-4-5 400s on BOTH `thinking={"type": "adaptive"}`
-    # ("adaptive thinking is not supported on this model") and `output_config.effort` ("This
-    # model does not support the effort parameter"). Sending either is an outage, not a downgrade.
+    # claude-haiku-4-5 400s on BOTH `thinking={"type": "adaptive"}` ("adaptive thinking is not
+    # supported on this model") and `output_config.effort` ("This model does not support the
+    # effort parameter"). Sending either is an outage, not a downgrade.
     for neutral in (NeutralParams(thinking=False), NeutralParams(thinking=True)):
         params = build_params(ANTHROPIC_SPEC, neutral)
         assert "thinking" not in params
@@ -155,7 +155,7 @@ def test_openai_uses_responses_shape():
     assert params["max_output_tokens"] == 200
     assert "max_completion_tokens" not in params  # Chat Completions' name, not this shape's
     assert "system" not in params  # Chat Completions' key, not the Responses API's
-    # live-verified (M9): GPT-5.6 terra 400s on `temperature` — a reasoning model, sampled by
+    # GPT-5.6 terra 400s on `temperature` — a reasoning model, sampled by
     # `reasoning.effort` instead, same story as `_build_anthropic`.
     assert "temperature" not in params
 
@@ -173,7 +173,7 @@ def test_openai_always_uses_low_reasoning_effort():
 
 
 def test_default_token_cap_leaves_room_for_hidden_reasoning_tokens():
-    # Regression (M9 bake-off): at the previous 400 default, claude-sonnet-5's adaptive thinking
+    # Regression: at the previous 400 default, claude-sonnet-5's adaptive thinking
     # could spend the whole budget before emitting the JSON, failing two eval scenarios with
     # "Invalid JSON: EOF while parsing a value". The cap must cover reasoning, not just the answer.
     from screening_agent.llm.params import DEFAULT_MAX_OUTPUT_TOKENS

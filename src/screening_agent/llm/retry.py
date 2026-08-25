@@ -4,7 +4,7 @@ for one logical attempt.
 
 Only `TransportError` is retried here (rate limit, timeout, 5xx, connection error — R5). A schema
 or 400 error is a different exception (`base.SchemaError`) that this layer never sees; retrying
-that against the *same* model with the parse error appended is `llm/extract.py`'s job (M3), not
+that against the *same* model with the parse error appended is `llm/extract.py`'s job, not
 this one's — a different vendor will not fix a bad schema, it will just bill you.
 """
 
@@ -23,11 +23,11 @@ MAX_DELAY_SECONDS = 20.0
 _RETRY_DELAY_PATTERNS = (
     re.compile(r"retryDelay[\"']?\s*:\s*[\"']?(\d+(?:\.\d+)?)s", re.IGNORECASE),
     re.compile(r"retry in (\d+(?:\.\d+)?)\s*seconds?", re.IGNORECASE),
-    # Groq/OpenAI-compatible 429 body (live-verified, M8): "Please try again in 1.2075s." — a
-    # different phrasing from Google's, and worth its own pattern rather than assuming Google's
-    # covers every vendor: without this, a Groq rate limit falls back to blind exponential
-    # backoff, which on an 8000 TPM free-tier budget burns through all 3 retry attempts faster
-    # than the window actually refills.
+    # Groq/OpenAI-compatible 429 body: "Please try again in 1.2075s." — a different phrasing from
+    # Google's, and worth its own pattern rather than assuming Google's covers every vendor:
+    # without this, a Groq rate limit falls back to blind exponential backoff, which on an
+    # 8000 TPM free-tier budget burns through all 3 retry attempts faster than the window
+    # actually refills.
     re.compile(r"try again in (\d+(?:\.\d+)?)s", re.IGNORECASE),
 )
 
@@ -60,10 +60,9 @@ def _hinted_delay(exc: TransportError) -> float | None:
 
 def _wait_seconds(attempt: int, exc: TransportError) -> float | None:
     """`None` means: fail now, don't sleep. A hinted delay above `MAX_DELAY_SECONDS` (e.g. a 429
-    hinting "try again in 3600.5s") used to be honoured verbatim, blocking the request thread for
-    up to an hour — the exponential-backoff path was already capped at `MAX_DELAY_SECONDS`, but
-    the hinted path wasn't. Above the ceiling, holding the connection open buys nothing a real
-    caller wants; failing immediately instead lets `llm/fallback.py` try the backup vendor."""
+    hinting "try again in 3600.5s") is not honoured verbatim — above the ceiling, holding the
+    connection open buys nothing a real caller wants; failing immediately instead lets
+    `llm/fallback.py` try the backup vendor."""
     hinted = _hinted_delay(exc)
     if hinted is not None:
         if hinted > MAX_DELAY_SECONDS:

@@ -1,7 +1,8 @@
 """Live tests (real Gemini embeddings) — marked `live`, self-skip without GEMINI_API_KEY. Each
 builds its own throwaway Chroma index in a tmp dir rather than depending on `data/chroma` having
-already been rebuilt, so the suite is self-contained even though M6's acceptance also runs
-`python -m screening_agent.rag.index --rebuild` against the real one for the live app to use.
+already been rebuilt, so the suite is self-contained even though
+`python -m screening_agent.rag.index --rebuild` also runs against the real one for the live app to
+use.
 """
 
 from __future__ import annotations

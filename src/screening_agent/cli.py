@@ -1,4 +1,4 @@
-"""Interactive terminal client (M3 acceptance):
+"""Interactive terminal client:
 
 python -m screening_agent.cli --new
 """

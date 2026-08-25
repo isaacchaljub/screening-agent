@@ -1,8 +1,7 @@
 """Renders `ScenarioResult`s into a markdown report — one row per scenario, one column per model
-(M8's `--model` accepts more than one, forward-compatible with M9's future full bake-off), plus a
-per-model summary table.
+(`--model` accepts more than one), plus a per-model summary table.
 
-M9's per-model summary adds avg latency (wall-clock seconds across every model call in a
+The per-model summary adds avg latency (wall-clock seconds across every model call in a
 conversation, per `runner._instrument`) and avg cost (`runner.pricing`, USD per conversation) —
 cost is `—` for any model with no entry in `pricing.PRICING_PER_MILLION_TOKENS` rather than a
 guessed number."""

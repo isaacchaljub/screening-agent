@@ -232,18 +232,13 @@ def validate_city(raw: str, zones: Sequence[Zone]) -> FieldResult:
 
 # --- availability / preferred_schedule --------------------------------------------------------
 
-# ⚠️ Elliptical answers are the normal case, not an edge case. The agent asks "¿tiempo completo,
-# medio tiempo o fines de semana?" and a real person answers "completo" — echoing back only the
-# word that distinguishes the options. `extract.py` is also instructed to strip conversational
-# wrapping and return the value alone, so a bare token is what usually arrives here.
+# ⚠️ Elliptical answers are the normal case: the agent asks "¿tiempo completo, medio tiempo o
+# fines de semana?" and a real person answers "completo" — echoing back only the word that
+# distinguishes the options. `extract.py` also strips conversational wrapping, so a bare token is
+# what usually arrives here.
 #
-# This list originally held only the full two-word phrases, so "completo", "medio", "parcial",
-# "full", "part" and "finde" were all rejected — while `_SCHEDULE_PHRASES` below happily accepted
-# the bare "tarde" and "noche". Two validators in the same module, written to different standards;
-# the availability question is simply the one where the short form is most natural.
-#
-# Matching is by word boundary rather than substring precisely *because* these are now short:
-# a bare "part" as a substring would fire inside "aparte", and "medio" inside "promedio".
+# Matching is by word boundary rather than substring precisely *because* these are short: a bare
+# "part" as a substring would fire inside "aparte", and "medio" inside "promedio".
 _AVAILABILITY_PHRASES: dict[Availability, tuple[str, ...]] = {
     Availability.FULL_TIME: (
         "full time",
@@ -321,10 +316,6 @@ def validate_preferred_schedule(raw: str) -> FieldResult:
 
 # --- experience_years / experience_platforms ---------------------------------------------------
 
-# "no tengo experiencia" ("I don't have experience") is arguably the *most* natural way to say
-# this in Spanish — live-verified missing here (M8 eval sweep): extraction correctly captured the
-# phrase, but this list didn't recognize it, so it fell through to "couldn't find a number of
-# years" and eventually NEEDS_HUMAN, on a candidate who should have qualified with 0 years.
 _NONE_EXPERIENCE_WORDS = (
     "none",
     "no experience",
@@ -344,11 +335,10 @@ _NONE_EXPERIENCE_WORDS = (
     "first time",
     "just starting",
 )
-# ⚠️ A duration is a NUMBER PLUS A UNIT, and this validator's whole job is to return *years*.
-# "6 meses" used to match the bare-number regex below and be stored as **6.0 years** — not a
-# rejection, a silently wrong value handed to the recruiter, which is precisely the failure R3
-# ("never guess a field") exists to prevent. Months must be converted, and must be checked BEFORE
-# any bare number is read.
+# ⚠️ A duration is a NUMBER PLUS A UNIT, and this validator's whole job is to return *years*. The
+# bare-number regex below would otherwise silently misread "6 meses" as 6.0 years — a wrong value
+# handed to the recruiter, not a rejection, exactly what R3 ("never guess a field") forbids.
+# Months must be converted, and checked BEFORE any bare number is read.
 _MONTHS_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(?:mes(?:es)?|months?|mo)\b")
 _HALF_YEAR_RE = re.compile(r"\bmedio\s+ano\b|\bhalf\s+a?\s*year\b")
 _YEAR_AND_A_HALF_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(?:anos?|years?)\s+y\s+medio")
@@ -528,11 +518,8 @@ _DAY_MONTH_RE = re.compile(
 # "September 15", "Sept 15th, 2026"
 _MONTH_DAY_RE = re.compile(rf"\b({_MONTH_ALT})\s+(\d{{1,2}})(?:st|nd|rd|th)?\b(?:,?\s*(\d{{4}}))?")
 # "en 2 semanas", "in 3 days", "en un mes" — and, critically, the bare "3 semanas" / "3 weeks".
-# The leading preposition is OPTIONAL on purpose. `extract.py` is instructed to "strip
-# conversational wrapping — extract the value alone, not the sentence around it", so
-# "I can start in 3 weeks" reaches this validator as `"3 weeks"`, not as the original sentence.
-# Requiring the preposition made the extraction prompt and this validator contradict each other,
-# and the contradiction was invisible to any test that fed this function a whole sentence.
+# The leading preposition is OPTIONAL on purpose: `extract.py` strips conversational wrapping, so
+# "I can start in 3 weeks" reaches this validator as `"3 weeks"`, not the original sentence.
 _NUMBER_WORDS: dict[str, int] = {
     "un": 1,
     "una": 1,

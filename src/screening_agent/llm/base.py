@@ -47,22 +47,9 @@ class SchemaError(RuntimeError):
 
 
 class TruncatedResponseError(SchemaError):
-    """The model hit its output-token cap before finishing (`stop_reason="max_tokens"` and
-    friends). Deliberately a `SchemaError` subclass, on both counts R5 cares about:
-
-    - It must **not** cross vendors. A different vendor wouldn't fix it; a bigger budget would.
-      Subclassing keeps it on the "retry the same model" side of `fallback.py`'s split for free.
-    - `extract.py`'s existing schema-retry loop then covers it with no new code — worth having
-      because on a model with adaptive thinking, how many reasoning tokens a turn spends varies
-      run to run, so the same request can succeed on the next attempt.
-
-    Raised explicitly by every provider rather than left to surface as whatever the SDK happens to
-    throw. Before this existed, a truncated structured call escaped as a raw
-    `pydantic.ValidationError` ("Invalid JSON: EOF while parsing a value") that no layer caught,
-    and a truncated *text* call was worse than an error: `complete_text` read the text out of a
-    response that had none and returned `""`, so the agent sent the candidate an empty message and
-    the conversation carried on as if nothing had happened.
-    """
+    """The model hit its output-token cap before finishing. Must stay a `SchemaError` subclass,
+    not a `TransportError` — a bigger budget fixes this, a different vendor doesn't, so it needs
+    to stay on `fallback.py`'s retry-the-same-model side, not trigger a vendor switch."""
 
 
 class Provider(Protocol):

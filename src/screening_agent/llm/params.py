@@ -4,18 +4,6 @@ reasoning/thinking parameter, the structured-output mechanism, and whether sampl
 are top-level or nested. `NeutralParams` is frozen and every builder returns a fresh `dict` — R6:
 `ModelSpec` is frozen, `build_params()` never mutates a caller's dict, popping keys out of a
 shared one works once per process and then quietly stops working.
-
-`google` is confirmed against `google-genai==1.60.0` (installed; see `providers/google.py`).
-`groq` (M8, eval sweeps) is confirmed against the installed `openai==3.3.1` SDK plus Groq's current
-docs (see `providers/chat_completions.py`) — its calling code is genuinely OpenAI-compatible Chat
-Completions, which is a different claim from "the real `openai` vendor's shape is verified": that
-one (GPT-5.6 `luna`/`terra`) uses the Responses API instead (`providers/openai.py`), a materially
-different param set built by `_build_openai_responses` below — read out of the installed SDK's own
-`resources/responses/responses.py` signatures, not from an assumption that Groq's dialect and real
-OpenAI's are identical. Live-verified at M9 (once `OPENAI_API_KEY` landed) against a real response,
-not just the SDK's typed signature — which is how `_build_openai_responses` was caught still
-emitting `temperature`, a param the SDK types happily accept but the live endpoint 400s on.
-`anthropic` is likewise confirmed live at M9, via the `claude-api` skill plus a real response.
 """
 
 from __future__ import annotations
@@ -28,21 +16,11 @@ from pydantic import BaseModel
 
 from screening_agent.llm.registry import ModelSpec
 
-# The cap has to cover the model's *hidden reasoning* tokens, not just the visible answer.
-#
-# This was live-verified the hard way (M9 bake-off): at the previous value of 400, sized from
-# "extract's JSON and compose's <25-word reply both fit easily", `claude-sonnet-5` failed two eval
-# scenarios outright. Sonnet 5 runs adaptive thinking *by default* when `thinking` is omitted, and
-# thinking tokens count against `max_tokens` — so a turn that reasoned a little longer than usual
-# spent the budget before finishing the JSON and came back either as a thinking block with no text
-# at all (`parsed_output is None`) or as truncated JSON (`pydantic.ValidationError: Invalid JSON:
-# EOF while parsing a value`). Reproduced deliberately at `max_tokens=60`:
-# `stop_reason="max_tokens"`, `content=[thinking]`, `parsed_output=None`.
-#
-# 2048 is a ceiling, not a reservation — every vendor here bills and rate-limits on tokens actually
-# generated, so raising it costs nothing on a call that doesn't need it. Measured headroom at this
-# value: Sonnet 5 with `effort: "low"` uses ~90-130 output tokens on a real extraction turn, Haiku
-# 4.5 ~70-95. The cap now exists to stop a runaway generation, not to fit the expected answer.
+# The cap has to cover the model's *hidden reasoning* tokens, not just the visible answer — an
+# adaptive-thinking model can spend the whole budget mid-thought and return truncated JSON or no
+# text at all. 2048 is a ceiling, not a reservation: every vendor here bills and rate-limits on
+# tokens actually generated, so raising it costs nothing on a call that doesn't need it. The cap
+# exists to stop a runaway generation, not to fit the expected answer.
 DEFAULT_MAX_OUTPUT_TOKENS = 2048
 DEFAULT_TEMPERATURE = 0.3
 
@@ -55,10 +33,10 @@ class NeutralParams:
     response_schema: type[BaseModel] | None = None
     thinking: bool = False
     # Embedding calls (`LLMClient.embed`) go through a *different* vendor config shape than
-    # generation calls do (confirmed live: Google's `EmbedContentConfig` rejects
-    # `max_output_tokens`/`temperature` outright — `embed()` was unverified until M6). `task_type`
-    # ("RETRIEVAL_DOCUMENT" at index time, "RETRIEVAL_QUERY" at query time) asymmetrically tunes
-    # Gemini's embedding for retrieval quality; unset for a symmetric embedding.
+    # generation calls do: Google's `EmbedContentConfig` rejects `max_output_tokens`/`temperature`
+    # outright. `task_type` ("RETRIEVAL_DOCUMENT" at index time, "RETRIEVAL_QUERY" at query time)
+    # asymmetrically tunes Gemini's embedding for retrieval quality; unset for a symmetric
+    # embedding.
     for_embedding: bool = False
     embed_task_type: str | None = None
 
@@ -110,32 +88,24 @@ def _build_openai_compatible(spec: ModelSpec, neutral: NeutralParams) -> dict[st
 
 
 def _build_anthropic(spec: ModelSpec, neutral: NeutralParams) -> dict[str, Any]:
-    """Confirmed live via the `claude-api` skill + the installed `anthropic==1.0.0` SDK on
-    2026-08-24 (M9): `max_tokens` is the output-token cap (top-level, required); `system` is a
-    top-level kwarg, not a message; structured output is `client.messages.parse(...,
-    output_format=<pydantic model>)` → `response.parsed_output` (`providers/anthropic.py` pops
-    `response_format` back out and uses it there, same pattern as the OpenAI-compatible builder).
-    Sampling params (`temperature`/`top_p`/`top_k`) are deliberately absent here — live-verified
-    they no longer exist as parameters on `messages.create`/`.parse()` at all on current models
-    (inspecting the installed SDK's own method signature confirms this, matching the skill's
-    "Sampling: Removed" note); passing one raises a TypeError before any request is even sent.
+    """`max_tokens` is the output-token cap (top-level, required); `system` is a top-level kwarg,
+    not a message; structured output is `client.messages.parse(..., output_format=<pydantic
+    model>)` → `response.parsed_output` (`providers/anthropic.py` pops `response_format` back out
+    and uses it there, same pattern as the OpenAI-compatible builder). Sampling params
+    (`temperature`/`top_p`/`top_k`) are deliberately absent here — they don't exist as parameters
+    on current models; passing one raises before any request is sent.
 
     **Reasoning is the one place the vendor alone isn't enough to build a request** — which is why
-    this is the only builder that reads `spec` and not just `neutral`. Live-verified 2026-08-25:
-
-    - `claude-sonnet-5` accepts `thinking={"type": "adaptive"}` and `output_config={"effort": ...}`.
-    - `claude-haiku-4-5` **400s on both** ("adaptive thinking is not supported on this model" /
-      "This model does not support the effort parameter") — it predates the 4.6 generation, where
-      adaptive thinking replaced the now-removed `budget_tokens`.
-
+    this is the only builder that reads `spec` and not just `neutral`: `claude-sonnet-5` accepts
+    `thinking={"type": "adaptive"}` and `output_config={"effort": ...}`, but `claude-haiku-4-5`
+    400s on both (it predates the generation where adaptive thinking replaced `budget_tokens`).
     `registry.ModelSpec.supports_adaptive_thinking` carries that distinction, as an allowlist, so an
     unknown model id degrades to "send neither param" rather than to a 400.
 
     Effort is pinned to `"low"` on models that have it, for the same reason the Groq and OpenAI
     builders pin theirs: extract is a factual pull and compose writes one sentence under 25 words,
-    so deeper reasoning buys nothing and costs latency the candidate feels in a messaging UI. It's
-    also the direct lever on Sonnet's share of the bake-off cost, since thinking tokens bill as
-    output. `neutral.thinking=True` asks for the default depth instead, for a caller that wants it.
+    so deeper reasoning buys nothing and costs latency the candidate feels in a messaging UI.
+    `neutral.thinking=True` asks for the default depth instead, for a caller that wants it.
     """
     if neutral.for_embedding:
         return {}  # Anthropic has no embeddings endpoint; embeddings stay on Google in dev (§5)
@@ -148,15 +118,14 @@ def _build_anthropic(spec: ModelSpec, neutral: NeutralParams) -> dict[str, Any]:
         # Explicit rather than omitted: on a 4.6+ model, omitting `thinking` does NOT mean "off"
         # — Sonnet 5 runs adaptive anyway. Saying so out loud is what lets the `effort` knob below
         # be the thing that actually bounds it. (`providers/anthropic.py` merges `output_config`
-        # with the schema-derived `format` — verified in the SDK's own `.parse()` body.)
+        # with the schema-derived `format`.)
         params["thinking"] = {"type": "adaptive"}
         params["output_config"] = {"effort": "high" if neutral.thinking else "low"}
     return params
 
 
 def _build_openai_responses(spec: ModelSpec, neutral: NeutralParams) -> dict[str, Any]:
-    """Real OpenAI (GPT-5.6 `luna`/`terra`) — Responses API shape, confirmed against the installed
-    `openai` SDK's `resources/responses/responses.py` signatures (`providers/openai.py`'s
+    """Real OpenAI (GPT-5.6 `luna`/`terra`) — Responses API shape (`providers/openai.py`'s
     docstring has the full read-out). `max_output_tokens` is the output-token cap (top-level, same
     name as this dataclass's field — no rename needed, unlike Chat Completions'
     `max_completion_tokens`). System prompt is a top-level `instructions` kwarg, not a message —
@@ -166,13 +135,10 @@ def _build_openai_responses(spec: ModelSpec, neutral: NeutralParams) -> dict[str
     `reasoning={"effort": "low"}` shape the SDK's `Reasoning` type declares, not Chat Completions'
     flat `reasoning_effort` string.
 
-    No `temperature` — live-verified (M9) that GPT-5.6 `terra` 400s with "Unsupported parameter:
-    'temperature' is not supported with this model" the same way current-generation Anthropic
-    models reject sampling params entirely (`_build_anthropic` above): a reasoning model, sampled
-    by its `reasoning.effort` instead. This was caught by the M9 live smoke
-    (`python -m screening_agent.llm.smoke --model openai:gpt-5.6-terra`), not read out of docs —
-    the installed SDK's typed signature still *accepts* the kwarg, it's the live endpoint that
-    rejects it.
+    No `temperature` — this model 400s on it the same way current-generation Anthropic models
+    reject sampling params entirely (`_build_anthropic` above): a reasoning model, sampled by its
+    `reasoning.effort` instead. The SDK's typed signature still accepts the kwarg; it's the live
+    endpoint that rejects it.
     """
     if neutral.for_embedding:
         return {}  # no embeddings endpoint via Responses API; embeddings stay on Google in dev (§5)
@@ -215,6 +181,6 @@ def build_params(spec: ModelSpec, neutral: NeutralParams) -> dict[str, Any]:
         builder = _BUILDERS[spec.vendor]
     except KeyError:
         raise NotImplementedError(
-            f"build_params for vendor {spec.vendor!r} is unverified — see M9"
+            f"no params builder registered for vendor {spec.vendor!r}"
         ) from None
     return builder(spec, neutral)

@@ -2,8 +2,7 @@
 
 Loaded once at import time. Real process environment variables always win over `.env` —
 `load_dotenv()` does not override variables already set, which is what lets
-`APP_ENV=prod python -c ...` override a `.env` that says `APP_ENV=dev` (see the R7 guard test
-in `_internal/PLAN_FOR_SONNET.md` M0).
+`APP_ENV=prod python -c ...` override a `.env` that says `APP_ENV=dev`.
 """
 
 from __future__ import annotations

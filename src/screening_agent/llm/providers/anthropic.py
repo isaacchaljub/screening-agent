@@ -1,29 +1,13 @@
-"""Anthropic (Claude) provider — M9, no longer blocked once `ANTHROPIC_API_KEY` was added.
-Verified live via the `claude-api` skill and the installed `anthropic==1.0.0` SDK on 2026-08-24
-(not from training-data recall, which the skill's own drift table flags as stale for this API):
+"""Anthropic (Claude) provider.
 
-- `anthropic.Anthropic(api_key=..., max_retries=0)` — R4: the SDK's own retry disabled, since
-  `llm/retry.py` is the only retry layer.
-- The system prompt is a top-level `system` kwarg to `messages.create`/`.parse()` — not a message
-  in the `messages` list, unlike Chat Completions' shape (Groq, `providers/chat_completions.py`).
-  Real OpenAI's Responses API (`providers/openai.py`) actually matches this top-level-kwarg
-  pattern too (its own `instructions` param), so the "unlike OpenAI" framing is really "unlike
-  Chat Completions" — the calling convention that differs, not the vendor.
-- Output-token cap is `max_tokens` (top-level, required by the SDK's own signature).
-- Structured output: `client.messages.parse(..., output_format=<pydantic model>)` →
-  `response.parsed_output`, the validated instance directly — confirmed this handles
-  `ExtractedFields`' `Optional[SomeEnum]` fields fine (unlike Groq's strict JSON-schema mode,
-  which live-verified rejects that exact shape — see `providers/chat_completions.py`'s docstring).
-  No manual schema-building or JSON parsing needed here, unlike the Groq path.
-- No sampling params (`temperature`/`top_p`/`top_k`) — live-verified removed entirely from the
-  current SDK's typed signature on current-generation models; `llm/params.py`'s builder never
-  emits them.
-- Errors: `RateLimitError` (429) and any `APIStatusError` with `status_code >= 500` (covers
-  `InternalServerError`/`OverloadedError`/`ServiceUnavailableError`) map to `TransportError` (R5);
-  `APIConnectionError` (network, including its `APITimeoutError` subclass) does too. A
-  `BadRequestError`/other 4xx propagates unchanged, so `extract.py`'s own schema-retry loop (R5)
-  can handle it instead of triggering a vendor fallback.
-- No embeddings endpoint — same as Groq; embeddings stay on Google in dev (§5).
+The system prompt is a top-level `system` kwarg to `messages.create`/`.parse()` — not a message in
+the `messages` list, unlike Chat Completions' shape (Groq, `providers/chat_completions.py`). Real
+OpenAI's Responses API (`providers/openai.py`) matches this top-level-kwarg pattern too (its own
+`instructions` param), so the "unlike OpenAI" framing is really "unlike Chat Completions" — the
+calling convention that differs, not the vendor. `max_retries=0` on the client (R4 — the SDK's own
+retry disabled, since `llm/retry.py` is the only retry layer). No sampling params
+(`temperature`/`top_p`/`top_k`) on current-generation models; `llm/params.py`'s builder never
+emits them.
 """
 
 from __future__ import annotations
@@ -119,9 +103,8 @@ def complete_structured(
         if _is_transport_error(exc):
             raise TransportError(f"anthropic transport error: {exc}", original=exc) from exc
         # `.parse()` validates the JSON itself, so a response truncated mid-object surfaces from
-        # inside the SDK as a pydantic error, not as anything Anthropic-shaped. Left unmapped it
-        # escaped every layer of this package (R5's retry-the-same-model path included) and killed
-        # the turn — live-verified against `claude-sonnet-5` in the M9 bake-off.
+        # inside the SDK as a pydantic error, not as anything Anthropic-shaped. Map it to
+        # SchemaError so R5's retry-the-same-model path can catch it instead of the turn dying.
         if isinstance(exc, pydantic.ValidationError):
             raise SchemaError(f"anthropic returned invalid {schema.__name__} JSON: {exc}") from exc
         raise

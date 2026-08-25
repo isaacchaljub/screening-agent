@@ -1,7 +1,7 @@
 """The extract half of R2's two-call turn: strict schema → partial profile + detected language.
 
 `extract()` never validates or decides anything — it only pulls out, verbatim where possible, what
-the candidate's *latest* message says about each field. `validators.py` (pure Python, M1) is what
+the candidate's *latest* message says about each field. `validators.py` (pure Python) is what
 turns that raw text into an accepted value or a rejection reason; this module must stay ignorant
 of §4.4's rules the same way `stages.py` is ignorant of them, just from the other direction: R1 is
 about who decides *flow*, but R3 ("never guess a field") means extraction has to be conservative
@@ -19,11 +19,7 @@ from screening_agent.models import Language
 
 # R5 / llm/retry.py's own docstring: a schema-validation failure retries the *same* model with
 # the parse error appended, never a vendor fallback — a different vendor won't fix a bad schema,
-# it'll just bill you. (Live-verified gap, M8: this was documented in retry.py's comments as
-# "llm/extract.py's job" but was never actually implemented anywhere — SchemaError just propagated
-# and crashed the turn. Never surfaced against Google's structured output, which is strict enough
-# not to trigger it; Groq's best-effort JSON mode is looser, e.g. returning `null` instead of `[]`
-# for `experience_platforms` — a real, if infrequent, case any vendor could hit.)
+# it'll just bill you.
 MAX_SCHEMA_RETRIES = 2
 
 _SYSTEM_PROMPT = """\

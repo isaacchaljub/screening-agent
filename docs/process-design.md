@@ -191,3 +191,10 @@ sentence is the commitment the rest of the design is held to.
   Before turning voice on for real candidate traffic, this needs the same treatment the first two
   bullets above already got: confirm the plan behind `ELEVENLABS_API_KEY` doesn't reserve training
   rights over submitted audio, or gate it the way free-tier LLM vendors are gated.
+- **Logs are unstructured, and keyed by nothing.** The length-and-hash convention above already
+  keeps candidate text out of the log; the residual gap is that a log line also isn't keyed by
+  `client_id` or `request_id`, so correlating one candidate's turns across a retry or a fallback
+  means reading the file in order rather than filtering on a field. `structlog`, with those two
+  fields bound once per request via `contextvars`, would carry them through every nested call
+  (`engine.py` → `store.py` → `llm/fallback.py`) automatically — the privacy boundary above doesn't
+  move, only what's queryable does.

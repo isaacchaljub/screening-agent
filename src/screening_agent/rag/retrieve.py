@@ -1,4 +1,4 @@
-"""Top-k FAQ retrieval with a relevance floor (M6).
+"""Top-k FAQ retrieval with a relevance floor.
 
 Retrieval is by meaning, not keyword — nothing here filters by the query's own language, so a
 Spanish query can surface the English-language chunk on the same topic (or vice versa) when it's
@@ -15,27 +15,10 @@ from screening_agent.llm.client import LLMClient
 from screening_agent.rag.index import CHROMA_DIR, get_collection
 
 DEFAULT_TOP_K = 3
-# Recalibrated for the local `intfloat/multilingual-e5-small` model (see
-# `llm/providers/local.py`). A floor is NOT transferable between embedding models — the previous
-# 0.72 was measured against Gemini and is meaningless here, because each model puts its own
-# similarities on its own scale. Measured on this exact 40-entry FAQ, 17 on-topic queries (mixed
-# ES/EN) against 10 off-topic ones:
-#
-#     on-topic  : min 0.854   max 0.907     (top-1 retrieved the right chunk 16/17 times)
-#     off-topic : max 0.830   min 0.738     ("what's the weather?", "do you like pizza?", ...)
-#
-# 0.84 sits in that gap. Two honest caveats worth knowing rather than discovering later:
-#
-# 1. The gap is narrower than Gemini's was (~0.02 vs ~0.06). E5 compresses similarity into a high,
-#    tight band, so this threshold discriminates less comfortably than the raw numbers suggest —
-#    the *ordering* is reliable, the absolute cut is the fragile part.
-# 2. It is biased slightly toward answering. A false positive answers an odd question with a real
-#    FAQ fact (mild — compose may only use the retrieved text, never invent). A false negative
-#    ignores a genuine question, which is what makes a candidate feel unheard. Given the asymmetry,
-#    erring low is right.
-#
-# The load-bearing gate is upstream anyway: `retrieve()` only ever runs on something `extract.py`
-# already classified as a question, so this floor never has to separate questions from answers.
+# Not transferable between embedding models — each puts its own similarities on its own scale, so
+# this must be recalibrated if `llm/providers/local.py`'s model ever changes. See README
+# "Embeddings run locally" for how 0.84 was calibrated. The load-bearing gate is upstream anyway:
+# `retrieve()` only ever runs on something `extract.py` already classified as a question.
 DEFAULT_RELEVANCE_FLOOR = 0.84
 
 

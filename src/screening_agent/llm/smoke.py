@@ -1,7 +1,7 @@
-"""M2 acceptance: one structured extraction and one text completion through Gemini.
-Extended at M9 with an optional `--model` override so the same smoke exercises whichever
-vendor's adapter needs live verification (`LLMClient(model=...)` forces both the extract and
-compose calls below onto that one model, per `client.py`'s `_resolve_with_backup`).
+"""One structured extraction and one text completion, for live verification. An optional
+`--model` override exercises whichever vendor's adapter needs checking (`LLMClient(model=...)`
+forces both the extract and compose calls below onto that one model, per `client.py`'s
+`_resolve_with_backup`).
 
 python -m screening_agent.llm.smoke
 python -m screening_agent.llm.smoke --model anthropic:claude-haiku-4-5

@@ -1,4 +1,4 @@
-"""Fast-clock demo (M7 acceptance): proves the re-engagement ladder fires all three nudges in
+"""Fast-clock demo: proves the re-engagement ladder fires all three nudges in
 sequence without actually waiting 3 days, by driving `run_once()` with an injected clock instead
 of the real one. Live — each nudge is a real Gemini call.
 

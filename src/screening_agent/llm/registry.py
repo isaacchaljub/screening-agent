@@ -1,39 +1,26 @@
 """`ModelSpec` and the extract/compose/embed role table (§5).
 
-Model *roles* and *prices* are decisions, made in `PLAN_FOR_SONNET.md` §5 and revised in M9, and
-are taken as given here. Model *API shapes* are verified separately, per provider, before that
-provider is written — see each `providers/*.py` module's docstring for what was confirmed and how.
+Model *roles* and *prices* are decisions, taken as given here. Model *API shapes* are verified
+separately, per provider, before that provider is written — see each `providers/*.py` module's
+docstring for what was confirmed and how.
 
-**Role table, as of M9 (2026-08-24, superseding §5's original OpenAI-primary table):** Anthropic
-is the default (primary) for extract/compose — verified live, `ANTHROPIC_API_KEY` present, cost
-accepted for dev/demo use. Google (free-tier, dev-only per R7) is the backup, covering a transport
-failure in `dev`; outside `dev` a failed Anthropic call has no fallback, since R7 forbids falling
-back onto a free-tier vendor there. Groq is deliberately *not* in this table at all — it's reached
-only via `LLMClient(model="groq:...")` for eval sweeps (M8), never as a live primary or backup, to
-keep its free-tier usage predictable. Real OpenAI (GPT-5.6 `luna`/`terra`, confirmed live via
-WebFetch on 2026-08-24 to be real, current model ids) has a working adapter —
-`providers/openai.py` implements the Responses API (`client.responses.create`/`.parse`), the
-materially different shape from Chat Completions/Groq that blocked it at M9 — reachable via
-`LLMClient(model="openai:...")`. It is still deliberately *not* in this role table, and not
-because of an unverified shape any more: the M9 live smoke (`llm/smoke.py --model
-openai:gpt-5.6-terra`) did catch and fix a real bug (`params.py`'s builder was sending
-`temperature`, which the live endpoint 400s on for this model — see `params.py`'s docstring), but
-the account behind `OPENAI_API_KEY` has no billing credits (`insufficient_quota`/
-`credit_balance_exhausted` on every call past that point), so no OpenAI call has actually
-completed end to end. Per Isaac's direction (2026-08-24): keep OpenAI out of the live role table
-and out of the M9 bake-off until that's resolved — the same "deliberately left out" decision
-recorded in `_internal/PROGRESS.md`'s M9 entry. Swapping OpenAI in for Anthropic as primary/backup
-once credits exist, and re-running `llm/smoke.py` to confirm a real response, are both still open.
+**Role table:** Anthropic is the primary for extract/compose. Google (free-tier, dev-only per R7)
+is the backup, covering a transport failure in `dev`; outside `dev` a failed Anthropic call has no
+fallback, since R7 forbids falling back onto a free-tier vendor there. Groq and real OpenAI
+(`providers/chat_completions.py`, `providers/openai.py`) both have working adapters but are
+deliberately absent from this role table — reachable only via `LLMClient(model="vendor:...")`,
+Groq for eval sweeps and OpenAI because the account behind `OPENAI_API_KEY` has no billing credits
+(see README "Model choice" and `providers/openai.py`'s docstring). Neither is a live primary or
+backup.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-# Confirmed live against console.groq.com/docs/openai on 2026-08-24: Groq's endpoint is
-# "mostly compatible with OpenAI's client libraries" at this base URL. Kept here, not hardcoded in
-# providers/chat_completions.py (§5: "make the base URL part of ModelSpec, not a hardcoded
-# constant") — the provider module only ever reads `spec.base_url`.
+# Groq's endpoint is "mostly compatible with OpenAI's client libraries" at this base URL. Kept
+# here, not hardcoded in providers/chat_completions.py (§5: "make the base URL part of ModelSpec,
+# not a hardcoded constant") — the provider module only ever reads `spec.base_url`.
 _VENDOR_BASE_URLS: dict[str, str] = {
     "groq": "https://api.groq.com/openai/v1",
 }
@@ -41,12 +28,10 @@ _VENDOR_BASE_URLS: dict[str, str] = {
 
 # Reasoning controls differ *within* the Anthropic vendor, by model generation — so they belong
 # on `ModelSpec`, next to `supports_strict_schema`, rather than in `params.py`'s per-vendor
-# builder (which only sees the vendor). Live-verified on 2026-08-25 with `anthropic==1.0.0`:
+# builder (which only sees the vendor):
 #
 #   claude-sonnet-5  → accepts `thinking={"type": "adaptive"}` and `output_config={"effort": ...}`
-#   claude-haiku-4-5 → 400s on BOTH:
-#                        "adaptive thinking is not supported on this model"
-#                        "This model does not support the effort parameter."
+#   claude-haiku-4-5 → 400s on both (predates adaptive thinking)
 #
 # The split is generational (Claude 4.6+ has adaptive thinking; earlier models used the now-removed
 # `budget_tokens`), so this is an *allowlist*: an unrecognised model id gets `False` and we simply
@@ -101,8 +86,7 @@ class Role:
     dev_override: ModelSpec | None = None
 
 
-# Confirmed live against the free tier via ai.google.dev/gemini-api/docs/{models,pricing} on
-# 2026-08-24 — both extract and compose share one dev-override model per §5.
+# Both extract and compose share one dev-override model per §5.
 GEMINI_DEV_MODEL = ModelSpec.parse("google:gemini-3.5-flash-lite")
 GEMINI_EMBED_MODEL = ModelSpec.parse("google:gemini-embedding-001")
 
@@ -113,10 +97,9 @@ GEMINI_EMBED_MODEL = ModelSpec.parse("google:gemini-embedding-001")
 # was Google's free tier and R7 refuses free-tier vendors for candidate data.
 LOCAL_EMBED_MODEL = ModelSpec.parse("local:intfloat/multilingual-e5-small")
 
-# M8 eval sweeps: confirmed live against console.groq.com/docs/models on 2026-08-24. gpt-oss-120b,
-# not the smaller/cheaper 20b, because it's currently the only production Groq model class that
-# supports strict JSON-schema structured output (console.groq.com/docs/structured-outputs) — the
-# extract role needs that, so the choice isn't really discretionary. `--model groq:<id>` (LLMClient
+# For eval sweeps. gpt-oss-120b, not the smaller/cheaper 20b, because it's currently the only
+# production Groq model class that supports strict JSON-schema structured output — the extract
+# role needs that, so the choice isn't really discretionary. `--model groq:<id>` (LLMClient
 # override) selects this rather than it living in ROLES/resolve() — a sweep runs one model against
 # both roles, unlike the normal primary/backup-per-role table.
 GROQ_EVAL_MODEL = ModelSpec.parse("groq:openai/gpt-oss-120b")

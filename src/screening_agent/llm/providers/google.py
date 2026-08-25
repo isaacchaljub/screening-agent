@@ -1,30 +1,15 @@
 """Google Gemini provider (§5).
 
-The `google-genai` SDK surface postdates this session's reliable training data (§2), so every
-claim below was confirmed by introspecting the actually-installed package (`google-genai==1.60.0`,
-pinned in `pyproject.toml`) rather than recalled from memory, plus a live fetch of Google's current
-docs for model ids and free-tier terms:
+The system prompt, output-token cap, structured-output schema, and reasoning config all nest
+inside one `config` object passed to `client.models.generate_content`/`embed_content`, rather than
+sitting top-level the way Anthropic's/OpenAI's do. Structured output is
+`response_mime_type="application/json"` + `response_schema=<pydantic model>` on that config; the
+parsed instance comes back on `response.parsed`. A 429's retry hint lives in
+`ClientError.details` (`RetryInfo.retryDelay`), which `llm/retry.py` parses out.
 
-- Calls go through `genai.Client(api_key=...)`, then `client.models.generate_content(model=,
-  contents=, config=)` / `client.models.embed_content(model=, contents=, config=)`.
-- The system prompt is a `system_instruction` field *inside* the config object — not a top-level
-  kwarg, and not a message in `contents`.
-- The output-token cap is `max_output_tokens`, also inside the config.
-- Structured output: `response_mime_type="application/json"` + `response_schema=<pydantic model>`
-  on the config; the parsed instance comes back on `response.parsed` (`response.text` is the raw
-  text either way). Confirmed via `google.genai.types.GenerateContentResponse.parsed`'s field
-  docstring: "First candidate from the parsed response if response_schema is provided."
-- Reasoning/thinking is `thinking_config` (`{"thinking_level": ...}` or `{"thinking_budget": ...}`),
-  also inside the config — sampling params (`temperature`, `top_p`, `top_k`) sit alongside it,
-  top-level within the config, not nested further.
-- Errors: `google.genai.errors.ClientError` (4xx, includes 429) / `ServerError` (5xx), both
-  `APIError` subclasses with `.code` (HTTP status) and `.details` (parsed error body — where a
-  429's `RetryInfo.retryDelay` lives, which `llm/retry.py` parses out).
-- Embedding vectors come back as `response.embeddings[i].values` (`list[float]`).
-- Model ids, confirmed live on 2026-08-24 against https://ai.google.dev/gemini-api/docs/models and
-  /pricing: `gemini-3.5-flash-lite` (extract/compose dev override) and `gemini-embedding-001`
-  (embeddings). Both currently sit on the free tier, whose terms say prompts may be used to
-  improve Google's products — the reason `config.assert_model_allowed` (R7) gates them to dev.
+`gemini-3.5-flash-lite` (extract/compose dev override) and `gemini-embedding-001` (embeddings) are
+both free-tier, whose terms permit the vendor to train on submitted prompts — the reason
+`config.assert_model_allowed` (R7) gates them to `dev`.
 """
 
 from __future__ import annotations

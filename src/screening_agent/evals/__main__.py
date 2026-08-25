@@ -1,4 +1,4 @@
-"""M8 acceptance:
+"""Eval sweep CLI:
 
     python -m screening_agent.evals run --model groq:openai/gpt-oss-120b
 

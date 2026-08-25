@@ -314,9 +314,9 @@ special-casing anywhere downstream, including the two-attempt cap and mid-conver
 switching). Speech synthesis (a spoken agent reply) is **not** built: every voice_id tried against
 ElevenLabs' text-to-speech API — including its own standard premade voices — returns
 `402 payment_required`, "Free users cannot use library voices via the API." That's a plan
-restriction on the account behind the supplied key, live-verified, not a shape or effort problem;
-see `voice/elevenlabs.py`'s docstring for the full finding. Not built at all, still: sentiment
-analysis, an analytics dashboard. See `_internal/STUDY_GUIDE.md` for why those two, plus the
+restriction on the account behind the supplied key, not a shape or effort problem. Not built at
+all, still: sentiment analysis, an analytics dashboard. See `_internal/STUDY_GUIDE.md` for why
+those two, plus the
 original case for treating voice as the lowest-value "Great" tier before a key made half of it
 free to verify.
 
@@ -391,6 +391,13 @@ that isn't fully reconstructible from SQLite, which is why the container pins on
 to Redis is the first real change — it's a serializer, not a redesign — and it's what unblocks
 horizontal scaling and zero-downtime deploys.
 
+**Re-engagement runs on an in-process timer.** `reengage/scheduler.py`'s `APScheduler` job is a
+fine fit for one dev/demo server, but it stops being enough the moment there's more than one worker
+process (each would run its own duplicate sweep) or the process restarts on a schedule. The swap is
+a Celery beat entry (`reengage.sweep`, on the same interval) whose task body calls `run_once()` —
+`run_once()`, `Store.list_active()`, and `Store.record_nudge()` wouldn't need to change, only what
+triggers the sweep.
+
 **No prompt caching.** Extract's system prompt is fixed and the transcript grows at the end — the
 ideal shape for a cached prefix. This is the largest untaken cost lever, worth more than any model
 swap.
@@ -400,9 +407,9 @@ library would remove it — `onnxruntime` is already present as a Chroma depende
 hand-writing tokenisation, mean pooling and normalisation instead of three obvious lines.
 
 **`create_all()` is not a migration system.** `store.py` reconciles *added columns* on startup and
-raises clearly on anything else. That was written after a pre-M7 database turned the first message
-of a containerised run into a 500 — a genuinely good bug to have found before a demo rather than
-during one. A real deployment gets Alembic.
+raises clearly on anything else. That was written after a database predating a schema change turned
+the first message of a containerised run into a 500 — a genuinely good bug to have found before a
+demo rather than during one. A real deployment gets Alembic.
 
 **The guardrail classifier is a keyword list.** Fine for keyboard mashes and obvious hostility, and
 it fails in the safe direction (a missed insult is just an unhelpful answer, and injection is
@@ -420,6 +427,15 @@ answers WhatsApp. `api.py` is already the right seam for a channel adapter.
 **LLM tracing** Enabling Langsmith for the app, to be able to follow the agent's parameters, input,
 thinking, and output at every turn and call. This would make debugging a simple walkthrough over the
 trace and enable concurrent work on the code.
+
+**Logging is unstructured.** A dozen call sites use plain `logging.getLogger` and `%s`-style
+messages, fine for reading a file top to bottom but not for querying it — there's no field to filter
+a log aggregator on. `structlog` would fix that, and the specific win is nested calls: bind
+`client_id`/`request_id` once, in FastAPI middleware, via `contextvars`, and every downstream
+`logger.info()` in `engine.py`, `store.py`, and `llm/fallback.py` inherits both fields automatically,
+with no parameter threading and no change to what the log line says. Not worth it at the current
+call-site count; worth it the moment "show me this candidate's turns" needs to be a query instead of
+a read.
 ---
 
 ## Repository notes

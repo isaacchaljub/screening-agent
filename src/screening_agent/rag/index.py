@@ -1,4 +1,4 @@
-"""Chunk → embed → persist to Chroma (M6).
+"""Chunk → embed → persist to Chroma.
 
     python -m screening_agent.rag.index --rebuild
 

@@ -88,7 +88,7 @@ class Conversation:
         self._outcome: Terminal | None = None
         self._disqualify_reason: str | None = None
         # Injectable (tests fake it out — no network/Chroma in the offline suite); defaults to
-        # the real FAQ retriever (M6) against this conversation's own client/model.
+        # the real FAQ retriever against this conversation's own client/model.
         self._faq_retriever = faq_retriever or (
             lambda query: retrieve_faq(query, client=self.client)
         )
@@ -122,7 +122,7 @@ class Conversation:
         if self.finished:
             raise RuntimeError("conversation already reached a terminal outcome")
 
-        # Guardrails (M5) run before extraction and before the candidate's message joins
+        # Guardrails run before extraction and before the candidate's message joins
         # `self.history` — no need to spend a model call pulling fields out of a keyboard mash
         # or an insult, and it keeps the redirect-then-close ladder entirely independent of
         # whatever field happens to be pending.
@@ -149,9 +149,7 @@ class Conversation:
 
         # `extract()` appends `candidate_message` to `history` itself (see llm/extract.py) — so
         # `self.history` must NOT already contain it here, or the model sees the candidate's last
-        # message twice in a row. Append only after this call. (Regression: this bug pre-dates
-        # M5 and was live-verified to corrupt extraction, e.g. "Me llamo Ana García" sent twice
-        # extracted as full_name="Ana GarcíaMe llamo Ana García".)
+        # message twice in a row. Append only after this call.
         extracted = extract(self.client, history=self.history, candidate_message=candidate_message)
         self.history.append(Message(role="user", content=candidate_message))
         if extracted.language is not None:
@@ -159,7 +157,7 @@ class Conversation:
 
         just_captured, validation_reason = self._apply_extraction(extracted)
 
-        # A candidate asking a side question (M6) is not a failed or silent reply — it's a
+        # A candidate asking a side question is not a failed or silent reply — it's a
         # different, legitimate kind of turn, and process-design.md §3 doesn't want it counted
         # toward the 2-attempt cap ("the stage does not advance", not "the stage fails").
         faq_context: FaqContext | None = None
