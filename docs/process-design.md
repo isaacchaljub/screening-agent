@@ -148,7 +148,26 @@ separate, smaller prompt and are still the same brand speaking.
 
 ---
 
-## 6. Data handling
+## 6. Voice input
+
+A candidate may reply by voice instead of typing, from a mic button in the browser UI. The
+recording is transcribed (ElevenLabs Scribe, auto-detecting language, `voice/elevenlabs.py`) and
+the transcript becomes that turn's message — nothing downstream of that point knows or cares
+whether the text came from a keyboard or a microphone. Every rule above the fold applies exactly
+as written: the two-attempt cap, "never guess" on ambiguous input, and mid-conversation language
+switching (§3) all fire on a voice turn precisely as they would on a typed one, without special
+casing. Silence or an unintelligible recording transcribes to an empty string, which reads as an
+unanswered turn — "didn't catch that as an answer" — the same graceful path already defined for a
+silent typed reply.
+
+The agent's replies stay text-only. Speaking the reply back (TTS) is not implemented: it needs a
+paid ElevenLabs plan for API access to a usable voice, which the account behind the current key
+does not have (a live-verified `402 payment_required` on every voice tried, not a shape or
+integration problem). See `voice/elevenlabs.py` and README "Bonus features" for the detail.
+
+---
+
+## 7. Data handling
 
 The candidate is told at the greeting that their answers are stored for this application. That
 sentence is the commitment the rest of the design is held to.
@@ -165,3 +184,10 @@ sentence is the commitment the rest of the design is held to.
   step runs a small model in-process rather than sending the candidate's question to a vendor. This
   matters because a question is the one thing a candidate writes that is unpredictable — a name or
   a city is a field, but "¿me pagan si me lesiono?" is whatever they chose to say.
+- **Voice input is the one honest exception to "no candidate data reaches a free tier."** A
+  recording is sent to ElevenLabs for transcription, and `config.assert_model_allowed`'s R7 gate —
+  which blocks exactly this for the LLM roles — was never extended to cover it, because voice was
+  added after that policy was written, against whatever plan the supplied key happens to be on.
+  Before turning voice on for real candidate traffic, this needs the same treatment the first two
+  bullets above already got: confirm the plan behind `ELEVENLABS_API_KEY` doesn't reserve training
+  rights over submitted audio, or gate it the way free-tier LLM vendors are gated.

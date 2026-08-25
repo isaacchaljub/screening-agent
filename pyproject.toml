@@ -23,6 +23,11 @@ dependencies = [
     # Local, in-process embeddings (llm/providers/local.py). Pulls torch, which is by far the
     # heaviest dependency here — the trade is argued in README "Local embeddings".
     "sentence-transformers>=3.0",
+    # Voice input (speech-to-text only, voice/elevenlabs.py). Verified against 2.64.0.
+    "elevenlabs>=2.0",
+    # FastAPI's Form()/UploadFile (api.py's /api/chat/voice) need this to parse multipart bodies —
+    # it is not pulled in by fastapi/uvicorn themselves.
+    "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]

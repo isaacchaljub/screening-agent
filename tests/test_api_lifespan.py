@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from screening_agent import api
+from screening_agent import api, config
 
 
 def test_health_reports_faq_index_ready_after_a_successful_warmup(monkeypatch) -> None:
@@ -20,7 +20,9 @@ def test_health_reports_faq_index_ready_after_a_successful_warmup(monkeypatch) -
         response = client.get("/api/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "faq_index": "ready"}
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["faq_index"] == "ready"
 
 
 def test_health_reports_faq_index_unavailable_when_warmup_fails(monkeypatch) -> None:
@@ -34,7 +36,21 @@ def test_health_reports_faq_index_unavailable_when_warmup_fails(monkeypatch) -> 
 
     # The whole point: a failed warm-up degrades the FAQ feature, it does not take the server down.
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "faq_index": "unavailable"}
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["faq_index"] == "unavailable"
+
+
+def test_health_reports_voice_input_readiness_from_the_elevenlabs_key(monkeypatch) -> None:
+    monkeypatch.setattr(api, "_warmup_faq_index", lambda client: None)
+
+    monkeypatch.setattr(config, "ELEVENLABS_API_KEY", "test-key")
+    with TestClient(api.app) as client:
+        assert client.get("/api/health").json()["voice_input"] == "ready"
+
+    monkeypatch.setattr(config, "ELEVENLABS_API_KEY", None)
+    with TestClient(api.app) as client:
+        assert client.get("/api/health").json()["voice_input"] == "unavailable"
 
 
 def test_warmup_is_called_with_the_process_wide_llm_client(monkeypatch) -> None:

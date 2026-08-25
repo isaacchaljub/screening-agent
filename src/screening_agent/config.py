@@ -26,6 +26,8 @@ GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY") or None
 GROQ_API_KEY: str | None = os.getenv("GROQ_API_KEY") or None
 OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY") or None
 ANTHROPIC_API_KEY: str | None = os.getenv("ANTHROPIC_API_KEY") or None
+# Voice input only (speech-to-text) — see voice/elevenlabs.py for why voice *output* isn't wired.
+ELEVENLABS_API_KEY: str | None = os.getenv("ELEVENLABS_API_KEY") or None
 
 
 # --- service zones (§4.3) ---

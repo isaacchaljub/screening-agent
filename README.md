@@ -22,7 +22,9 @@ who were never eligible.
 
 Requires Python 3.11+ and an `ANTHROPIC_API_KEY`. That is the only key the core flow needs —
 FAQ retrieval runs a local embedding model, no vendor involved. `GEMINI_API_KEY` is optional and
-only provides the dev-only fallback for extraction/composition.
+only provides the dev-only fallback for extraction/composition. `ELEVENLABS_API_KEY` is optional
+and only turns on voice *input* — the browser UI's mic button stays hidden without it, and the
+rest of the app is unaffected either way.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
@@ -37,6 +39,7 @@ APP_ENV=dev
 ANTHROPIC_API_KEY=sk-ant-...
 GEMINI_API_KEY=...        # optional — dev-only fallback vendor
 GROQ_API_KEY=...          # optional — eval sweeps only
+ELEVENLABS_API_KEY=...    # optional — voice input (speech-to-text); see "Bonus features"
 ```
 
 Build the FAQ index once. This downloads the embedding model (~470 MB) on first run and then
@@ -56,7 +59,8 @@ uvicorn screening_agent.api:app --reload      # → http://127.0.0.1:8000
 python -m screening_agent.cli --new
 
 # Tests
-pytest -q                                     # 168 offline; test_retrieval.py is live-marked
+pytest -q                                     # 235 offline; test_retrieval.py + test_voice.py
+                                               # carry the 8 live-marked tests between them
 ruff check . && ruff format --check .
 ```
 
@@ -107,20 +111,22 @@ src/screening_agent/
 ├── guardrails.py     off-script classification + PII-safe log redaction       ← pure, no I/O
 ├── engine.py         the turn loop: extract → validate/advance → compose
 ├── store.py          SQLAlchemy persistence + per-conversation JSON export
-├── api.py            FastAPI: POST /api/chat, GET /api/conversations/{id}, static mount
+├── api.py            FastAPI: POST /api/chat[/voice], GET /api/conversations/{id}, static mount
 ├── cli.py            terminal client
 ├── config.py         env, service zones, tone constants, free-tier guard
-├── llm/              the provider layer — the only place a vendor name appears
+├── llm/              the provider layer — the only place an LLM vendor name appears
 │   ├── registry.py     ModelSpec (frozen) + the extract/compose/embed role table
 │   ├── params.py       build_params(spec, neutral) → exact per-vendor kwargs
 │   ├── retry.py        the one retry layer, vendor-aware backoff
 │   ├── fallback.py     primary → backup, transport failures only
 │   ├── client.py       LLMClient — the only thing the rest of the app imports
 │   └── providers/      google · anthropic · openai (Responses) · chat_completions (Groq)
+├── voice/            speech-to-text only (ElevenLabs Scribe) — one vendor, no fallback,
+│                     outside LLMClient/registry.ROLES entirely; see elevenlabs.py's docstring
 ├── rag/              FAQ knowledge base, Chroma index, retrieval
 ├── reengage/         nudge policy (pure) + APScheduler sweep
 ├── evals/            scenario runner, scoring, markdown report, pricing
-└── web/              chat UI — plain HTML/CSS/JS, no build step, no CDN
+└── web/              chat UI — plain HTML/CSS/JS, no build step, no CDN (mic button optional)
 ```
 
 ---
@@ -297,11 +303,22 @@ wouldn't be allowed to run isn't eligible to rescue a failed call.
 | **Multi-language + code-switching** | `llm/extract.py`, `llm/compose.py` | Language detected per message, reply follows without comment or restart. Handles a message mixing both. See `samples/language-switch.json`. |
 | **Re-engagement** | `reengage/` | 45min / 1day / 3day ladder, quiet hours in the candidate's own timezone, 3-nudge cap, any reply cancels the rest. The policy is a pure function with an injected clock. |
 | **Guardrails** | `guardrails.py` | Off-script redirect then close; injection defeated structurally (see 1); candidate text never enters logs. |
-| **Tests + evals** | `tests/` | 168 offline tests + 12 scenario evals scored on outcome, field accuracy, message length and turns. |
+| **Tests + evals** | `tests/` | 235 offline tests + 8 live-marked + 12 scenario evals scored on outcome, field accuracy, message length and turns. |
 | **ATS integration design** | `docs/ats-integration.md` | Design only, as specified. |
 | **Deployment design** | `docs/deployment.md` | Including the path to 10K candidates/week. |
+| **Voice input** | `voice/elevenlabs.py`, `POST /api/chat/voice` | Added once a live `ELEVENLABS_API_KEY` existed — see below, not one of the tiers picked up front. |
 
-Not built, deliberately: the voice agent, sentiment analysis, an analytics dashboard.
+**Voice, honestly.** Speech-to-text is built and live-verified end to end (browser mic →
+ElevenLabs Scribe → the same `Conversation.step()` every typed turn goes through — no
+special-casing anywhere downstream, including the two-attempt cap and mid-conversation language
+switching). Speech synthesis (a spoken agent reply) is **not** built: every voice_id tried against
+ElevenLabs' text-to-speech API — including its own standard premade voices — returns
+`402 payment_required`, "Free users cannot use library voices via the API." That's a plan
+restriction on the account behind the supplied key, live-verified, not a shape or effort problem;
+see `voice/elevenlabs.py`'s docstring for the full finding. Not built at all, still: sentiment
+analysis, an analytics dashboard. See `_internal/STUDY_GUIDE.md` for why those two, plus the
+original case for treating voice as the lowest-value "Great" tier before a key made half of it
+free to verify.
 
 ---
 
