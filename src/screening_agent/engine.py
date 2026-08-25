@@ -200,13 +200,15 @@ class Conversation:
 
         if isinstance(agent_step, AskStage):
             self._stage = agent_step.stage
-            if agent_step.stage == Stage.WRAP_UP:
-                # Rule 5 (stages.py): shown once, then the *next* next_step() call qualifies.
-                self.attempts["wrap_up:shown"] = 1
         if isinstance(agent_step, Terminate):
             self._outcome = agent_step.outcome
             reason = agent_step.reason
             self._disqualify_reason = reason.value if hasattr(reason, "value") else reason
+            if agent_step.outcome == Terminal.QUALIFIED:
+                # stages.py Rule 5 qualifies and confirms in the same step now — record the
+                # stage as WRAP_UP so a qualified conversation's last stage reads sensibly
+                # instead of showing whichever field question happened to come last.
+                self._stage = Stage.WRAP_UP
 
         self._record(candidate_message=candidate_message, agent_message=text)
 

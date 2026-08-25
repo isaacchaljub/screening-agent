@@ -61,7 +61,6 @@ def test_full_conversation_reaches_qualified(tmp_path):
                 experience_platforms=["Glovo", "Uber Eats"],
             ),
             ExtractedFields(language=Language.ES, start_date="el lunes que viene"),
-            ExtractedFields(language=Language.ES),  # closing "gracias" — nothing left to extract
         ]
     )
     conv = Conversation(store=_store(tmp_path), client=client)
@@ -75,7 +74,6 @@ def test_full_conversation_reaches_qualified(tmp_path):
         "Por la mañana",
         "2 años, en Glovo y Uber Eats",
         "Puedo empezar el lunes que viene",
-        "Perfecto, gracias!",
     ]
     for msg in messages:
         conv.step(msg)

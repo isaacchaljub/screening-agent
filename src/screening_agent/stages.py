@@ -12,7 +12,6 @@ field name. Two keys are booleans encoded as 0/1 rather than counts:
 - `"has_license:confirm_attempts"` — counts unclear replies to that `Confirm` turn itself; capped
   the same way any other field is (rule 3), so an unresolved hedge reaches a human instead of
   looping on `Confirm` forever.
-- `"wrap_up:shown"` — set once the WRAP_UP message has actually been sent.
 
 This dict, not `CandidateProfile`, is where that bookkeeping lives — the profile is also the
 handoff payload and stays exactly the ten fields in §4.2.
@@ -105,9 +104,12 @@ def next_step(profile: CandidateProfile, attempts: dict[str, int]) -> Step:
         if is_field_empty(profile, field):
             return AskStage(stage)
 
-    # Rule 5 — everything is filled: show WRAP_UP once, then qualify.
-    if not attempts.get("wrap_up:shown", 0):
-        return AskStage(Stage.WRAP_UP)
+    # Rule 5 — everything is filled: qualify in this same step. This used to show WRAP_UP as
+    # its own `AskStage`, with qualification only on the *next* `next_step()` call — but that
+    # left the candidate needing to send one more message after already being told a recruiter
+    # would follow up, which most candidates (reasonably) never do, so the conversation just
+    # sat un-qualified. process-design.md's stage table treats "confirms what was captured,
+    # states next steps" and "-> QUALIFIED" as one step, not two round-trips apart.
     return Terminate(Terminal.QUALIFIED)
 
 

@@ -52,10 +52,6 @@ _STAGE_INSTRUCTIONS: dict[Stage, str] = {
         "(e.g. Glovo, Uber Eats, Rappi) — one message, both questions."
     ),
     Stage.START_DATE: 'Ask when they could start (Spanish: "fecha de inicio").',
-    Stage.WRAP_UP: (
-        "Briefly confirm you've got everything you need and a recruiter will follow up soon. "
-        "Do not ask another question."
-    ),
 }
 
 _CONFIRM_INSTRUCTIONS: dict[str, str] = {

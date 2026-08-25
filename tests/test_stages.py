@@ -148,11 +148,7 @@ def _full_profile() -> CandidateProfile:
     )
 
 
-def test_all_fields_filled_shows_wrap_up_once():
-    assert next_step(_full_profile(), {}) == AskStage(Stage.WRAP_UP)
-
-
-def test_wrap_up_shown_then_qualifies():
-    step = next_step(_full_profile(), {"wrap_up:shown": 1})
+def test_all_fields_filled_qualifies_immediately():
+    step = next_step(_full_profile(), {})
     assert isinstance(step, Terminate)
     assert step.outcome == Terminal.QUALIFIED
