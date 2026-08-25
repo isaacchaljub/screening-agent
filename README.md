@@ -15,6 +15,7 @@ who were never eligible.
 - **ATS integration spec:** [`docs/ats-integration.md`](docs/ats-integration.md)
 - **Sample conversations:** [`samples/`](samples/)
 - **Running it / demo runbook:** [`docs/serve.md`](docs/serve.md)
+- **Study guide (design decisions, in depth):** [`docs/study-guide.md`](docs/study-guide.md)
 
 ---
 
@@ -185,10 +186,7 @@ Sonnet-on-both-jobs, at 58% of the cost** ($0.0258 vs $0.0448 per conversation) 
 extraction half never needed the stronger model. See the bake-off below.
 
 **`OPENAI_API_KEY` is present and deliberately unused.** `providers/openai.py` implements the
-Responses API (GPT-5.6 `luna`/`terra`) and a live call did get past request validation — but the
-account behind the key has no billing credits, so no OpenAI call has ever completed end to end.
-Rather than list a vendor in the role table that has never returned a `200`, it stays out. Honest
-beats impressive.
+Responses API (GPT-5.6 `luna`/`terra`) but it stays out at this stage.
 
 **Why Anthropic as the primary at all:** it was the vendor whose current API surface could be
 verified end to end against real responses within the time available, and the Haiku/Sonnet pair
@@ -246,7 +244,11 @@ models like `all-MiniLM-L6-v2` were never candidates: this FAQ is deliberately b
 2. **A narrower relevance margin.** The floor had to be recalibrated from scratch (0.72 → 0.84);
    a threshold is not transferable between embedding models. E5 compresses similarity into a high,
    tight band, so the gap between on-topic and off-topic is ~0.02 here versus ~0.06 before. The
-   *ordering* is reliable; the absolute cut is the fragile part.
+   *ordering* is usually reliable; the absolute cut is the fragile part — but not always: measured
+   in production, "cuánto pagan" (how much do you pay) ranked "¿Cuándo me pagan?" (when do you get
+   paid) first, 0.880 vs 0.875. Same topic, one differing letter, and the tight band in this exact
+   model means a ~0.005 gap decides it. `rag/retrieve.py`'s `_interrogative_category()` tie-break
+   (below) exists because of this specific, measured miss, not a hypothetical one.
 3. **Cross-lingual retrieval no longer clears that floor.** Spanish-query→English-chunk pairs score
    ~0.82–0.85, overlapping the off-topic band, so no absolute threshold admits all of them while
    rejecting junk. In production this costs nothing — both language files cover the same 20 topics,
@@ -377,14 +379,23 @@ call. The absolute number is not the interesting part; the ratio is.
 
 ## What I'd do differently, and what's missing
 
-**Retrieval is embedding-only — no reranker, and that's a defensible call at this size but not a
-general one.** 40 short, deliberately distinct FAQ chunks with a calibrated relevance floor (0.84,
-measured: on-topic 0.854–0.907, off-topic peaking at 0.830) leaves little for a cross-encoder to
-reorder. At a few thousand chunks that trade flips and a reranker earns its latency — and it would
-also fix the narrow margin noted in decision (4), since a reranker discriminates by *relative*
-score rather than an absolute cut. Now that embeddings run locally, a reranker would too, so the
-argument against it is no longer latency to a third vendor but simply that this corpus doesn't need
-one.
+**Retrieval has no general cross-encoder reranker — one narrow, targeted tie-break instead.** 40
+short, deliberately distinct FAQ chunks with a calibrated relevance floor (0.84, measured: on-topic
+0.854–0.907, off-topic peaking at 0.830) leaves little for a full reranker to reorder — until it
+doesn't: "cuánto pagan" (how much) vs "¿Cuándo me pagan?" (when) is a real, measured near-tie
+(0.880 vs 0.875) that this embedding model gets backwards, because "cuánto"/"cuándo" differ by one
+letter and E5 doesn't weight that heavily. Rather than pull in a cross-encoder for one word pair,
+`rag/retrieve.py::_interrogative_category()` is a small, pure-Python tie-break (no extra model
+call, same philosophy as `guardrails.classify()`): it recognizes a handful of interrogative words
+(cuánto/cuándo/cómo/dónde/qué and their English equivalents), and when the query's word and a
+candidate's leading word match or conflict, nudges the score by ±0.03–0.05 — enough to flip a
+~0.005–0.02 gap, not enough to override a real semantic difference. It fixes this one confusable
+pair and any other same-category collision the FAQ picks up later; it is not a substitute for a
+real reranker. At a few thousand chunks — or a FAQ with more than one or two of these near-miss
+pairs — a cross-encoder reranker earns its latency for the general case, and it would also fix the
+narrow margin noted in decision (4) directly, since it discriminates by *relative* score rather
+than an absolute cut. Now that embeddings run locally, a reranker would too, so the only argument
+against it today is that this corpus's *other* ~38 chunks don't need one.
 
 **Conversation state is in a process-local dict.** `api._conversations` holds turn-scoped state
 that isn't fully reconstructible from SQLite, which is why the container pins one worker. Moving it
@@ -436,6 +447,10 @@ a log aggregator on. `structlog` would fix that, and the specific win is nested 
 with no parameter threading and no change to what the log line says. Not worth it at the current
 call-site count; worth it the moment "show me this candidate's turns" needs to be a query instead of
 a read.
+
+**Driver's License validation** Currently I only do this with a yes/no question to the user, but a
+more robust way of doing this would be integrating a third-party identity validation service that 
+allows us to effectively confirm the person has a valid license.
 ---
 
 ## Repository notes

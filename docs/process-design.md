@@ -19,19 +19,18 @@ rejected.
 
 | # | Stage | Asks for | Branching |
 |---|-------|----------|-----------|
-| 0 | `GREETING` | — | Introduces the role and the company, states that answers are stored for this application, invites the candidate to start. Always advances. |
-| 1 | `NAME` | Full name | Always advances. |
-| 2 | `LICENSE` | Valid driver's licence, yes/no | **No → `DISQUALIFIED`.** Hedged or unclear → re-ask once, then flag for a human. |
-| 3 | `CITY` | City or working zone | **Outside the service areas → `DISQUALIFIED`.** Unrecognised → re-ask once with nearby zones named. |
-| 4 | `AVAILABILITY` | Full-time / part-time / weekends | Always advances. |
-| 5 | `SCHEDULE` | Morning / afternoon / evening / flexible | Always advances. |
-| 6 | `EXPERIENCE` | Years, and which platforms | Zero experience is valid and does **not** disqualify. |
-| 7 | `START_DATE` | When they can begin | Always advances. |
-| 8 | `WRAP_UP` | — | Confirms what was captured, states next steps → `QUALIFIED`. |
+| 0 | `GREETING` | — | Introduces the role and the company, states that answers are stored for this application, then asks for the candidate's full name directly — no separate "shall we start?" turn. Always advances. |
+| 1 | `LICENSE` | Valid driver's licence, yes/no | **No → `DISQUALIFIED`.** Hedged or unclear → re-ask once, then flag for a human. |
+| 2 | `CITY` | City or working zone | **Outside the service areas → `DISQUALIFIED`.** Unrecognised → re-ask once with nearby zones named. |
+| 3 | `AVAILABILITY` | Full-time / part-time / weekends | Always advances. |
+| 4 | `SCHEDULE` | Morning / afternoon / evening / flexible | Always advances. |
+| 5 | `EXPERIENCE` | Years, and which platforms | Zero experience is valid and does **not** disqualify. |
+| 6 | `START_DATE` | When they can begin | Always advances. |
+| 7 | `WRAP_UP` | — | Confirms what was captured, states next steps → `QUALIFIED`. |
 
 Terminal states: `QUALIFIED`, `DISQUALIFIED`, `NEEDS_HUMAN`, `ABANDONED`.
 
-**Why the two gates sit at positions 2 and 3.** A candidate who cannot qualify learns so within
+**Why the two gates sit at positions 1 and 2.** A candidate who cannot qualify learns so within
 four messages instead of twelve. That respects their time, and it is the single largest lever on
 the client's wasted-recruiter-hours problem — an ineligible candidate now costs three messages of
 compute instead of a fifteen-minute call.
@@ -161,40 +160,6 @@ unanswered turn — "didn't catch that as an answer" — the same graceful path 
 silent typed reply.
 
 The agent's replies stay text-only. Speaking the reply back (TTS) is not implemented: it needs a
-paid ElevenLabs plan for API access to a usable voice, which the account behind the current key
-does not have (a live-verified `402 payment_required` on every voice tried, not a shape or
-integration problem). See `voice/elevenlabs.py` and README "Bonus features" for the detail.
+paid ElevenLabs plan for API access to a usable voice.
 
 ---
-
-## 7. Data handling
-
-The candidate is told at the greeting that their answers are stored for this application. That
-sentence is the commitment the rest of the design is held to.
-
-- **Answers go to the database; they never go to the application log.** A logged message is reduced
-  to a length and a short hash — enough to correlate log lines across a retry, never enough to
-  reconstruct what someone wrote. Logs are longer-lived, more widely read, and more often shipped
-  to third parties than the database the candidate was told about.
-- **No candidate text reaches a model tier that may train on it.** Free vendor tiers generally
-  reserve the right to use submitted prompts to improve their products, so the system refuses to
-  start if one is selected outside local development. This is checked at startup rather than left
-  to a deployment convention.
-- **Answering questions from the knowledge base requires no third party at all.** The retrieval
-  step runs a small model in-process rather than sending the candidate's question to a vendor. This
-  matters because a question is the one thing a candidate writes that is unpredictable — a name or
-  a city is a field, but "¿me pagan si me lesiono?" is whatever they chose to say.
-- **Voice input is the one honest exception to "no candidate data reaches a free tier."** A
-  recording is sent to ElevenLabs for transcription, and `config.assert_model_allowed`'s R7 gate —
-  which blocks exactly this for the LLM roles — was never extended to cover it, because voice was
-  added after that policy was written, against whatever plan the supplied key happens to be on.
-  Before turning voice on for real candidate traffic, this needs the same treatment the first two
-  bullets above already got: confirm the plan behind `ELEVENLABS_API_KEY` doesn't reserve training
-  rights over submitted audio, or gate it the way free-tier LLM vendors are gated.
-- **Logs are unstructured, and keyed by nothing.** The length-and-hash convention above already
-  keeps candidate text out of the log; the residual gap is that a log line also isn't keyed by
-  `client_id` or `request_id`, so correlating one candidate's turns across a retry or a fallback
-  means reading the file in order rather than filtering on a field. `structlog`, with those two
-  fields bound once per request via `contextvars`, would carry them through every nested call
-  (`engine.py` → `store.py` → `llm/fallback.py`) automatically — the privacy boundary above doesn't
-  move, only what's queryable does.

@@ -30,8 +30,11 @@ class FaqContext:
 
 _STAGE_INSTRUCTIONS: dict[Stage, str] = {
     Stage.GREETING: (
-        "Greet the candidate, say you're screening applicants for a delivery-driver role at "
-        "Grupo Sazón, mention their answers are saved for this application, invite them to start."
+        "Greet the candidate. Introduce yourself as \"el asistente de selección de Grupo Sazón\" "
+        "(in Spanish) or \"the screening assistant at Grupo Sazón\" (in English) — always with "
+        "the article, never bare \"asistente\"/\"assistant\". Say you're screening applicants for "
+        "the delivery-driver role, mention their answers are saved for this application, then ask "
+        "for their full name — don't ask a separate 'shall we start?' question first."
     ),
     Stage.NAME: "Ask for their full name.",
     Stage.LICENSE: (

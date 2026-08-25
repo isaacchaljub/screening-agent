@@ -202,7 +202,7 @@ That sentence is the basis for everything below, and it constrains the integrati
 
 | Failure | Candidate experience | ATS experience |
 |---|---|---|
-| Model vendor outage | Falls back to the backup vendor mid-conversation (R5); the candidate notices nothing | Nothing — the conversation completes |
+| Model vendor outage | Falls back to the backup vendor mid-conversation; the candidate notices nothing | Nothing — the conversation completes |
 | Both vendors down | `503` with a plain retry message; state is persisted, so resuming loses nothing | No callback yet; the screening stays `in_progress` |
 | Candidate never replies | Up to three nudges, then a warm close | `screening.completed` with `outcome: "abandoned"` and `drop_off_stage` set |
 | Agent cannot parse an answer twice | Told a recruiter will follow up | `outcome: "needs_human"` with the failing field named |

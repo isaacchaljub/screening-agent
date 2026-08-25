@@ -22,7 +22,7 @@
   "transcript": [
     {
       "role": "agent",
-      "content": "¡Hola! Soy de Grupo Sazón seleccionando repartidores. Tus respuestas quedan guardadas para esta solicitud. ¿Empezamos?"
+      "content": "¡Hola! Soy el asistente de selección de Grupo Sazón. Estoy filtrando candidatos para el puesto de repartidor y tus respuestas quedan guardadas para esta solicitud. ¿Cuál es tu nombre completo?"
     },
     {
       "role": "candidate",
@@ -30,7 +30,7 @@
     },
     {
       "role": "agent",
-      "content": "¡Hola! ¿Me podrías decir tu nombre completo, por favor?"
+      "content": "¡Buenas! Un placer. ¿Cuál es tu nombre completo?"
     },
     {
       "role": "candidate",
@@ -38,7 +38,7 @@
     },
     {
       "role": "agent",
-      "content": "¡Perfecto, Ana! ¿Tienes actualmente una licencia de conducir válida?"
+      "content": "Gracias, Ana. ¿Tienes licencia de conducir vigente, sí o no?"
     },
     {
       "role": "candidate",
@@ -46,7 +46,7 @@
     },
     {
       "role": "agent",
-      "content": "Got it! Which city or area would you like to work in?"
+      "content": "Great, licence noted. Which city or area would you work in?"
     },
     {
       "role": "candidate",
@@ -54,7 +54,7 @@
     },
     {
       "role": "agent",
-      "content": "Great, Madrid! What is your availability: full-time, part-time, or weekends?"
+      "content": "Got it, Madrid. What's your availability — full-time, part-time, or weekends?"
     },
     {
       "role": "candidate",
@@ -62,7 +62,7 @@
     },
     {
       "role": "agent",
-      "content": "¡Anotado! ¿Cuántos años de experiencia en reparto tienes y en qué plataformas trabajaste?"
+      "content": "Great, full-time mornings noted. How many years of delivery experience do you have, and on which platforms?"
     },
     {
       "role": "candidate",
@@ -70,7 +70,7 @@
     },
     {
       "role": "agent",
-      "content": "¡Excelente! ¿Cuál es tu fecha de inicio disponible?"
+      "content": "Perfecto, 3 años en Uber Eats y Glovo. ¿Cuál sería tu fecha de inicio disponible?"
     },
     {
       "role": "candidate",
@@ -78,17 +78,9 @@
     },
     {
       "role": "agent",
-      "content": "Got it! I have everything needed now, and a recruiter will follow up with you soon."
-    },
-    {
-      "role": "candidate",
-      "content": "Thanks!"
-    },
-    {
-      "role": "agent",
-      "content": "Thanks! A recruiter will reach out soon with next steps."
+      "content": "Thank you so much, Ana! A recruiter will reach out soon with next steps."
     }
   ],
   "summary": "Ana García — Madrid. Licence: yes. Availability: full_time, morning shift. Experience: 3.0 years (Uber Eats, Glovo). Start: 2026-08-31.",
-  "exported_at": "2026-08-24T17:51:00.660992+00:00"
+  "exported_at": "2026-08-25T16:23:38.506546+00:00"
 }

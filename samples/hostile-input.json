@@ -19,7 +19,7 @@
   "transcript": [
     {
       "role": "agent",
-      "content": "¡Hola! Estoy filtrando candidatos para el puesto de repartidor en Grupo Sazón. Tus respuestas quedarán guardadas para esta solicitud. ¿Empezamos?"
+      "content": "¡Hola! Soy el asistente de selección de Grupo Sazón. Estoy filtrando candidatos para repartidor y tus respuestas quedan guardadas en esta postulación. ¿Cuál es tu nombre completo?"
     },
     {
       "role": "candidate",
@@ -27,7 +27,7 @@
     },
     {
       "role": "agent",
-      "content": "Perfecto, empecemos. ¿Cuál es tu nombre completo?"
+      "content": "¡Hola! Encantado de contactarte para el puesto de repartidor en Grupo Sazón. ¿Cuál es tu nombre completo?"
     },
     {
       "role": "candidate",
@@ -35,7 +35,7 @@
     },
     {
       "role": "agent",
-      "content": "Entiendo tu frustración, seguimos con el proceso. ¿Cuál es tu nombre completo?"
+      "content": "Entiendo tu frustración, pero necesito unos datos para avanzar. ¿Cuál es tu nombre completo?"
     },
     {
       "role": "candidate",
@@ -43,9 +43,9 @@
     },
     {
       "role": "agent",
-      "content": "Entendido, no seguimos con el proceso. Gracias por tu tiempo, que tengas buen día."
+      "content": "Entendido, cerramos aquí la conversación. Gracias por tu tiempo y que tengas un buen día."
     }
   ],
   "summary": "Unnamed candidate — unknown city. Licence: no. Availability: unspecified, unspecified shift. Experience: unspecified years (none). Start: unspecified.",
-  "exported_at": "2026-08-25T07:01:09.818932+00:00"
+  "exported_at": "2026-08-25T16:20:57.308336+00:00"
 }

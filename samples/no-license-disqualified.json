@@ -19,7 +19,7 @@
   "transcript": [
     {
       "role": "agent",
-      "content": "¡Hola! Soy el asistente de selección de Grupo Sazón para el puesto de repartidor. Tus respuestas quedan guardadas en esta solicitud. ¿Empezamos?"
+      "content": "¡Hola! Soy el asistente de selección de Grupo Sazón, estoy filtrando candidatos para el puesto de repartidor. Tus respuestas quedan guardadas para esta solicitud. ¿Cuál es tu nombre completo?"
     },
     {
       "role": "candidate",
@@ -27,7 +27,7 @@
     },
     {
       "role": "agent",
-      "content": "¡Perfecto! Para empezar, ¿me compartes tu nombre completo?"
+      "content": "¿Cuál es tu nombre completo, por favor?"
     },
     {
       "role": "candidate",
@@ -43,9 +43,9 @@
     },
     {
       "role": "agent",
-      "content": "Entendido, Pedro. Sin licencia no podemos avanzar ahora, pero cuando la tengas, ¡vuelve a postularte con gusto! Éxitos."
+      "content": "Entendido, Pedro. Sin licencia no podemos continuar ahora, pero puedes volver a aplicar cuando la obtengas. ¡Éxitos!"
     }
   ],
   "summary": "Pedro Gómez — unknown city. Licence: no. Availability: unspecified, unspecified shift. Experience: unspecified years (none). Start: unspecified.",
-  "exported_at": "2026-08-25T07:00:38.947832+00:00"
+  "exported_at": "2026-08-25T16:20:26.085959+00:00"
 }

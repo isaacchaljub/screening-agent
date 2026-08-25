@@ -21,7 +21,7 @@
   "transcript": [
     {
       "role": "agent",
-      "content": "¡Hola! Soy del equipo de selección de Grupo Sazón para el puesto de repartidor. Tus respuestas quedan guardadas para esta solicitud. ¿Empezamos?"
+      "content": "¡Hola! Soy el asistente de selección de Grupo Sazón. Estoy filtrando candidatos para el puesto de repartidor y tus respuestas quedarán guardadas para esta solicitud. ¿Cuál es tu nombre completo?"
     },
     {
       "role": "candidate",
@@ -29,7 +29,7 @@
     },
     {
       "role": "agent",
-      "content": "Perfecto, Carlos, gracias. ¿Tu disponibilidad es tiempo completo, medio tiempo o fines de semana?"
+      "content": "¡Perfecto, Carlos! ¿Tu disponibilidad es tiempo completo, medio tiempo o fines de semana?"
     },
     {
       "role": "candidate",
@@ -37,7 +37,7 @@
     },
     {
       "role": "agent",
-      "content": "¡Genial, tiempo completo anotado! ¿Qué turno prefieres: mañana, tarde, noche o flexible?"
+      "content": "Genial, tiempo completo anotado. ¿Prefieres turno mañana, tarde, noche o flexible?"
     },
     {
       "role": "candidate",
@@ -45,7 +45,7 @@
     },
     {
       "role": "agent",
-      "content": "Entendido, turno noche. ¿Cuántos años de experiencia repartiendo tienes y en qué plataformas (Glovo, Uber Eats, Rappi)?"
+      "content": "Entendido, turno noche. ¿Cuántos años de experiencia en reparto tienes y en qué plataformas has trabajado (Glovo, Uber Eats, Rappi)?"
     },
     {
       "role": "candidate",
@@ -53,7 +53,7 @@
     },
     {
       "role": "agent",
-      "content": "Excelente experiencia, Carlos. ¿Cuál sería tu fecha de inicio?"
+      "content": "¡Excelente experiencia con Didi Food! ¿Cuál sería tu fecha de inicio?"
     },
     {
       "role": "candidate",
@@ -61,17 +61,9 @@
     },
     {
       "role": "agent",
-      "content": "Perfecto, ya tengo todo lo necesario. Un reclutador se pondrá en contacto contigo pronto. ¡Gracias, Carlos!"
-    },
-    {
-      "role": "candidate",
-      "content": "Gracias"
-    },
-    {
-      "role": "agent",
-      "content": "¡Un placer, Carlos! Pronto tendrás noticias de nuestro equipo de reclutamiento."
+      "content": "¡Genial, Carlos! Gracias por toda tu información, un reclutador se pondrá en contacto contigo pronto con los siguientes pasos."
     }
   ],
   "summary": "Carlos Vega — Puebla. Licence: yes. Availability: full_time, evening shift. Experience: 5.0 years (DiDi Food). Start: immediately.",
-  "exported_at": "2026-08-25T07:00:59.990523+00:00"
+  "exported_at": "2026-08-25T16:20:47.176542+00:00"
 }

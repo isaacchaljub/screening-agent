@@ -8,6 +8,8 @@ collection instead of two.
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,13 +23,60 @@ DEFAULT_TOP_K = 3
 # `retrieve()` only ever runs on something `extract.py` already classified as a question.
 DEFAULT_RELEVANCE_FLOOR = 0.84
 
+# How many chroma candidates the interrogative tie-break (below) gets to look at before the result
+# is truncated to `top_k` — wider than `top_k` so the right answer has a chance to be re-ranked
+# into first place even when it wasn't chroma's closest match by raw cosine distance.
+_RERANK_POOL = 8
+
+# "¿Cuánto pagan por entrega?" (how much) and "¿Cuándo me pagan?" (when) sit close enough in this
+# embedding model's space that a short, natural candidate query like "cuanto pagan" occasionally
+# ranks the wrong one first (measured: 0.880 vs 0.875) — "cuánto"/"cuándo" differ by one letter and
+# the model doesn't weight it. Fixing this by re-embedding or swapping models would need
+# recalibrating `DEFAULT_RELEVANCE_FLOOR` against the whole FAQ; this is a pure-Python, zero-cost
+# tie-break instead (same "no extra model call" approach as `guardrails.classify()`): when the
+# query has a recognizable interrogative word, nudge candidates whose own question starts with a
+# *matching* one ahead, and ones with a *conflicting* one behind. Candidates with no recognizable
+# interrogative (most of the FAQ) are untouched either way.
+_INTERROGATIVE_MARKERS: tuple[tuple[str, str], ...] = tuple(
+    sorted(
+        (
+            (marker, category)
+            for category, markers in {
+                "amount": ("cuanto", "cuantos", "cuanta", "cuantas", "how much", "how many"),
+                "time": ("cuando", "when"),
+                "manner": ("como", "how"),
+                "place": ("donde", "where"),
+                "identity": ("que", "cual", "cuales", "quien", "what", "which", "who"),
+                "reason": ("por que", "porque", "why"),
+            }.items()
+            for marker in markers
+        ),
+        key=lambda pair: -len(pair[0]),  # longest marker first: "how much" before "how"
+    )
+)
+_INTERROGATIVE_MATCH_BONUS = 0.05
+_INTERROGATIVE_MISMATCH_PENALTY = 0.03
+
+
+def _strip_accents(text: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
+
+
+def _interrogative_category(text: str) -> str | None:
+    normalized = _strip_accents(text.lower())
+    for marker, category in _INTERROGATIVE_MARKERS:
+        if re.search(rf"\b{re.escape(marker)}\b", normalized):
+            return category
+    return None
+
 
 @dataclass(frozen=True, slots=True)
 class FaqHit:
     question: str
     answer: str
     language: str
-    relevance: float  # cosine similarity, roughly [-1, 1]; higher is closer
+    relevance: float  # cosine similarity, roughly [-1, 1]; higher is closer — never boosted by
+    # the interrogative tie-break, so this still reflects true embedding distance for callers/tests
 
 
 def warmup(client: LLMClient, *, persist_dir: Path = CHROMA_DIR) -> None:
@@ -64,21 +113,35 @@ def retrieve(
     collection = get_collection(persist_dir)
     query_vector = client.embed([query], task_type="RETRIEVAL_QUERY").vectors[0]
     where = {"language": language} if language is not None else None
-    result = collection.query(query_embeddings=[query_vector], n_results=top_k, where=where)
+    fetch_k = max(top_k, _RERANK_POOL)
+    result = collection.query(query_embeddings=[query_vector], n_results=fetch_k, where=where)
 
-    hits: list[FaqHit] = []
     metadatas = result["metadatas"][0] if result["metadatas"] else []
     distances = result["distances"][0] if result["distances"] else []
+    query_category = _interrogative_category(query)
+
+    candidates: list[tuple[float, FaqHit]] = []
     for metadata, distance in zip(metadatas, distances, strict=True):
         relevance = 1.0 - distance  # chroma's cosine space: distance = 1 - cosine_similarity
         if relevance < relevance_floor:
             continue
-        hits.append(
-            FaqHit(
-                question=metadata["question"],
-                answer=metadata["answer"],
-                language=metadata["language"],
-                relevance=relevance,
+        rank_score = relevance
+        if query_category is not None:
+            hit_category = _interrogative_category(metadata["question"])
+            if hit_category == query_category:
+                rank_score += _INTERROGATIVE_MATCH_BONUS
+            elif hit_category is not None:
+                rank_score -= _INTERROGATIVE_MISMATCH_PENALTY
+        candidates.append(
+            (
+                rank_score,
+                FaqHit(
+                    question=metadata["question"],
+                    answer=metadata["answer"],
+                    language=metadata["language"],
+                    relevance=relevance,
+                ),
             )
         )
-    return hits
+    candidates.sort(key=lambda pair: pair[0], reverse=True)
+    return [hit for _, hit in candidates[:top_k]]

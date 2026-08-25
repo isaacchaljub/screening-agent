@@ -15,13 +15,13 @@
     "experience_platforms": [
       "Glovo"
     ],
-    "start_date": "2026-08-25",
+    "start_date": "2026-08-26",
     "starts_immediately": false
   },
   "transcript": [
     {
       "role": "agent",
-      "content": "¡Hola! Soy de Grupo Sazón seleccionando repartidores. Tus respuestas quedan guardadas para esta solicitud. ¿Empezamos?"
+      "content": "¡Hola! Soy el asistente de selección de Grupo Sazón. Estoy filtrando candidatos para repartidor y guardo tus respuestas para esta postulación. ¿Cuál es tu nombre completo?"
     },
     {
       "role": "candidate",
@@ -29,7 +29,7 @@
     },
     {
       "role": "agent",
-      "content": "¡Hola! Para avanzar, ¿me dices tu nombre completo, por favor?"
+      "content": "¡Genial que te animes! Para tu postulación como repartidor, ¿cuál es tu nombre completo?"
     },
     {
       "role": "candidate",
@@ -37,7 +37,7 @@
     },
     {
       "role": "agent",
-      "content": "¡Mucho gusto, Carlos! ¿Tienes actualmente una licencia de conducir vigente?"
+      "content": "Gracias, Carlos. Ahora dime, ¿tienes licencia de conducir vigente?"
     },
     {
       "role": "candidate",
@@ -45,7 +45,7 @@
     },
     {
       "role": "agent",
-      "content": "¡Excelente! ¿En qué ciudad o zona te gustaría trabajar con nosotros?"
+      "content": "Perfecto, licencia registrada. ¿En qué ciudad o zona trabajarías?"
     },
     {
       "role": "candidate",
@@ -53,7 +53,7 @@
     },
     {
       "role": "agent",
-      "content": "Una tarifa base por entrega más un extra por distancia en rutas largas. ¿En qué ciudad o zona trabajarías?"
+      "content": "Pagan una tarifa base por entrega más un extra por distancia en rutas largas; la tarifa exacta depende de tu zona y te la confirma un reclutador. ¿En qué ciudad o zona trabajarías?"
     },
     {
       "role": "candidate",
@@ -61,7 +61,7 @@
     },
     {
       "role": "agent",
-      "content": "¡Perfecto, Valencia! ¿Cuál es tu disponibilidad: tiempo completo, medio tiempo o fines de semana?"
+      "content": "Perfecto, Valencia registrada. ¿Tu disponibilidad es tiempo completo, medio tiempo o fines de semana?"
     },
     {
       "role": "candidate",
@@ -69,7 +69,7 @@
     },
     {
       "role": "agent",
-      "content": "¡Entendido! ¿Prefieres turno de mañana, tarde, noche o eres flexible?"
+      "content": "¡Excelente, tiempo completo! ¿Prefieres turno mañana, tarde, noche o flexible?"
     },
     {
       "role": "candidate",
@@ -77,7 +77,7 @@
     },
     {
       "role": "agent",
-      "content": "¡Anotado! ¿Cuántos años de experiencia tienes repartiendo y en qué plataformas?"
+      "content": "Turno tarde, anotado. Cuéntame, ¿cuántos años de experiencia tienes repartiendo y en qué plataformas, por ejemplo Glovo, Uber Eats o Rappi?"
     },
     {
       "role": "candidate",
@@ -85,7 +85,7 @@
     },
     {
       "role": "agent",
-      "content": "¡Excelente, con Glovo! ¿Cuál sería tu fecha de inicio?"
+      "content": "1 año en Glovo, anotado. Última pregunta: ¿cuál sería tu fecha de inicio?"
     },
     {
       "role": "candidate",
@@ -93,17 +93,9 @@
     },
     {
       "role": "agent",
-      "content": "¡Perfecto, mañana! Ya tengo toda tu información. Un reclutador se pondrá en contacto contigo muy pronto para los siguientes pasos."
-    },
-    {
-      "role": "candidate",
-      "content": "Gracias"
-    },
-    {
-      "role": "agent",
-      "content": "¡De nada, Carlos! Muchas gracias por tu tiempo, un reclutador se pondrá en contacto contigo muy pronto con los siguientes pasos."
+      "content": "¡Perfecto, Carlos! Gracias por toda la información; un reclutador te contactará pronto con los próximos pasos."
     }
   ],
-  "summary": "Carlos Pérez — Valencia. Licence: yes. Availability: full_time, afternoon shift. Experience: 1.0 years (Glovo). Start: 2026-08-25.",
-  "exported_at": "2026-08-24T18:00:03.498201+00:00"
+  "summary": "Carlos Pérez — Valencia. Licence: yes. Availability: full_time, afternoon shift. Experience: 1.0 years (Glovo). Start: 2026-08-26.",
+  "exported_at": "2026-08-25T16:21:44.703908+00:00"
 }
