@@ -400,9 +400,6 @@ notice and the current suite wouldn't.
 **Single-channel.** The browser UI is the demo surface, but a candidate who ignores a phone call
 answers WhatsApp. `api.py` is already the right seam for a channel adapter.
 
-**database** I'd add MongoDB to keep rack of conversations by user, making sure the whole thread
-is saved and that information can be persisted through app restarts more effectively.
-
 **LLM tracing** Enabling Langsmith for the app, to be able to follow the agent's parameters, input,
 thinking, and output at every turn and call. This would make debugging a simple walkthrough over the
 trace and enable concurrent work on the code.
