@@ -1,6 +1,11 @@
-"""Live tests (real Gemini embeddings) — marked `live`, self-skip without GEMINI_API_KEY. Each
-builds its own throwaway Chroma index in a tmp dir rather than depending on `data/chroma` having
-already been rebuilt, so the suite is self-contained even though
+"""Real-embedding retrieval tests — marked `slow`, not `live`: since the `embed` role moved to
+`providers/local.py` these need no vendor key and make no network call at all, they just pay the
+one-time cost of loading the local model (~6s) and building an index. Gating them on
+GEMINI_API_KEY, as they were when embeddings were hosted, silently skipped the whole file for
+anyone without a key they no longer need.
+
+Each builds its own throwaway Chroma index in a tmp dir rather than depending on `data/chroma`
+having already been rebuilt, so the suite is self-contained even though
 `python -m screening_agent.rag.index --rebuild` also runs against the real one for the live app to
 use.
 """
@@ -9,15 +14,11 @@ from __future__ import annotations
 
 import pytest
 
-from screening_agent import config
 from screening_agent.llm.client import LLMClient
 from screening_agent.rag.index import load_entries, rebuild
 from screening_agent.rag.retrieve import DEFAULT_RELEVANCE_FLOOR, retrieve
 
-pytestmark = [
-    pytest.mark.live,
-    pytest.mark.skipif(not config.GEMINI_API_KEY, reason="GEMINI_API_KEY not set"),
-]
+pytestmark = pytest.mark.slow
 
 
 @pytest.fixture(scope="module")

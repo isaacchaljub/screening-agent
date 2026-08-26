@@ -51,6 +51,7 @@ screening_agent = ["web/*", "rag/*.md"]
 testpaths = ["tests"]
 markers = [
     "live: hits a real vendor API; skipped unless the relevant key is set",
+    "slow: loads the local embedding model and builds a real index; no network, no key",
 ]
 
 [tool.ruff]

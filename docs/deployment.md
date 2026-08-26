@@ -222,7 +222,7 @@ because those tiers permit training on prompts), and the eval suite as a release
 |---|---|
 | `APP_ENV` | `dev` · `demo` · `prod`. Anything but `dev` refuses free-tier models at startup. |
 | `ANTHROPIC_API_KEY` | Primary vendor (extract + compose) |
-| `GEMINI_API_KEY` | Embeddings; dev-only backup for extract/compose |
+| `GEMINI_API_KEY` | Dev-only backup for extract/compose. Not used for embeddings — those run in-process (§4). |
 | `GROQ_API_KEY` | Eval sweeps only — never a live primary or backup |
 | `OPENAI_API_KEY` | Present but unused; see the README |
 

@@ -1,6 +1,8 @@
 """Fast-clock demo: proves the re-engagement ladder fires all three nudges in
 sequence without actually waiting 3 days, by driving `run_once()` with an injected clock instead
-of the real one. Live — each nudge is a real Gemini call.
+of the real one. Live — each nudge is a real model call on the `compose` role (Anthropic
+`claude-sonnet-5`; Gemini is only its dev backup), so three calls per run and the wording differs
+every time.
 
     python -m screening_agent.reengage.demo
 

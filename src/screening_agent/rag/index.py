@@ -4,8 +4,10 @@
 
 Each `## Question` block in `faq.es.md` / `faq.en.md` is one chunk — short enough on its own that
 no further splitting is useful. Embeddings go through the provider layer (`LLMClient.embed`), which
-in dev resolves to Google's `gemini-embedding-001` (§5) — this deliberately never requires an
-OpenAI key.
+resolves to the in-process `local:intfloat/multilingual-e5-small` model in every environment (§5,
+and README "Embeddings run locally") — so building the index requires no vendor key of any kind
+and makes no network call. That is deliberate: R7 refuses free-tier vendors for candidate data,
+and this is the one role that removes the vendor rather than arguing about its terms.
 """
 
 from __future__ import annotations
