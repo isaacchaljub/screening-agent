@@ -26,6 +26,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from google.genai import errors as genai_errors
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from screening_agent import config
 from screening_agent.engine import Conversation
@@ -201,14 +202,30 @@ async def chat_voice(
     An empty/silent recording transcribes to `""`, which is passed through to `conversation.step()`
     unchanged rather than rejected — `engine.py` already treats a reply that captures nothing as a
     normal failed attempt ("didn't get an answer to that"), the correct outcome for silence too.
+
+    **Why the two `run_in_threadpool` calls below.** This handler has to be `async def` — reading a
+    multipart upload (`await audio.read()`) is genuinely awaitable — and an `async def` path
+    operation runs *on the event loop thread itself*, unlike a plain `def` one, which Starlette
+    hands to a worker thread precisely because it might block. But `transcribe()` and
+    `conversation.step()` are both fully synchronous (every vendor SDK client in this repo is the
+    sync one, and `llm/retry.py`'s backoff is `time.sleep`), so awaiting nothing, they would hold
+    the loop thread for the whole call — several seconds — and during that window the server
+    cannot accept a connection, dispatch a `/api/chat` request, or answer the healthcheck. One
+    voice request would stall every other conversation in the process.
+
+    Wrapping them puts both on the same threadpool `/api/chat` already runs on, so this endpoint
+    is exactly as concurrent as the text one. The general rule: `async def` is a promise to yield
+    at every await, and blocking work inside one silently breaks it — with no error to notice.
     """
     conversation = _get_active_conversation(conversation_id)
     audio_bytes = await audio.read()
     if not audio_bytes:
         raise HTTPException(status_code=422, detail="audio is required")
 
-    transcript = voice_provider.transcribe(audio_bytes, filename=audio.filename or "recording.webm")
-    reply = conversation.step(transcript)
+    transcript = await run_in_threadpool(
+        voice_provider.transcribe, audio_bytes, filename=audio.filename or "recording.webm"
+    )
+    reply = await run_in_threadpool(conversation.step, transcript)
     return VoiceChatResponse(
         conversation_id=conversation.id,
         transcript=transcript,
